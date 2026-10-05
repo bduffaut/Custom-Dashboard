@@ -1,0 +1,33 @@
+{
+  "name": "custom-dashboard-grid",
+  "version": "0.1.0",
+  "description": "Draggable, resizable dashboard grid for Vue 3. Give it widgets, it handles the rest.",
+  "keywords": ["vue", "vue3", "grid", "dashboard", "drag", "resize", "layout", "widgets"],
+  "type": "module",
+  "files": [
+    "dist"
+  ],
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && vite build && vue-tsc -p tsconfig.build.json",
+    "dev": "concurrently -k -n js,types -c blue,cyan \"vite build --watch\" \"vue-tsc -p tsconfig.build.json --watch --preserveWatchOutput\"",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "typecheck": "vue-tsc -p tsconfig.json"
+  },
+  "peerDependencies": {
+    "vue": "^3.3.0"
+  }
+}
