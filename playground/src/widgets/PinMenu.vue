@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch, type Component } from 'vue'
-import { useWidget, type PinMode } from 'custom-dashboard-grid'
+import { PIN_MODE_OPTIONS, useWidget, type PinMode } from 'custom-dashboard-grid'
 import { Check, Lock, Move, Pin, PinOff } from 'lucide-vue-next'
 
 // Pin button for edit mode, teleported to body so the card does not clip the dropdown
@@ -8,14 +8,10 @@ import { Check, Lock, Move, Pin, PinOff } from 'lucide-vue-next'
 
 const { pinMode, setPinMode } = useWidget()
 
-const OPTIONS: { mode: PinMode; label: string; hint: string; icon: Component }[] = [
-  { mode: 'free', label: 'Unpinned', hint: 'Moves freely; other widgets can push it around', icon: PinOff },
-  { mode: 'pinned', label: 'Pinned', hint: 'Other widgets can’t move it, but you can still drag it', icon: Pin },
-  { mode: 'locked', label: 'Locked', hint: 'Can’t be moved or resized at all', icon: Lock },
-  { mode: 'no-resize', label: 'Resize locked', hint: 'Can be moved, but keeps its size', icon: Move },
-]
+// Labels come from the library, the playground only adds an icon per mode
+const ICONS: Record<PinMode, Component> = { free: PinOff, pinned: Pin, locked: Lock, 'no-resize': Move }
 
-const current = computed(() => OPTIONS.find((o) => o.mode === pinMode.value) ?? OPTIONS[0]!)
+const current = computed(() => PIN_MODE_OPTIONS.find((o) => o.mode === pinMode.value) ?? PIN_MODE_OPTIONS[0]!)
 
 const open = ref(false)
 const button = ref<HTMLButtonElement>()
@@ -80,7 +76,7 @@ onBeforeUnmount(() => (open.value = false))
     aria-haspopup="menu"
     @click="toggle"
   >
-    <component :is="current.icon" :size="13" />
+    <component :is="ICONS[current.mode]" :size="13" />
   </button>
   <Teleport to="body">
     <div
@@ -91,7 +87,7 @@ onBeforeUnmount(() => (open.value = false))
       :style="{ top: `${position.top}px`, left: `${position.left}px`, width: `${WIDTH}px` }"
     >
       <button
-        v-for="option in OPTIONS"
+        v-for="option in PIN_MODE_OPTIONS"
         :key="option.mode"
         class="pin-menu__item"
         :class="{ 'is-current': option.mode === pinMode }"
@@ -99,10 +95,10 @@ onBeforeUnmount(() => (open.value = false))
         :aria-checked="option.mode === pinMode"
         @click="choose(option.mode)"
       >
-        <component :is="option.icon" :size="15" class="pin-menu__icon" />
+        <component :is="ICONS[option.mode]" :size="15" class="pin-menu__icon" />
         <span class="pin-menu__text">
           <span class="pin-menu__label">{{ option.label }}</span>
-          <span class="pin-menu__hint">{{ option.hint }}</span>
+          <span class="pin-menu__hint">{{ option.description }}</span>
         </span>
         <Check v-if="option.mode === pinMode" :size="14" class="pin-menu__check" />
       </button>

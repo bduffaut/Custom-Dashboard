@@ -264,8 +264,15 @@ describe('grid sizing options', () => {
 
 describe('animation', () => {
   it('resolves presets, custom options and reduced motion', () => {
-    expect(resolveAnimation('bouncy', false)).toMatchObject({ duration: 420, enter: true, leave: true })
-    expect(resolveAnimation({ duration: 80, easing: 'linear', leave: false }, false)).toEqual({ duration: 80, easing: 'linear', enter: true, leave: false })
+    expect(resolveAnimation('bouncy', false)).toMatchObject({ duration: 420, enter: 'scale', leave: true })
+    expect(resolveAnimation({ duration: 80, easing: 'linear', leave: false }, false)).toEqual({
+      duration: 80,
+      easing: 'linear',
+      enter: 'scale',
+      appear: false,
+      stagger: 0,
+      leave: false,
+    })
     expect(resolveAnimation('smooth', true).duration).toBe(0)
     expect(resolveAnimation({ preset: 'gentle', respectReducedMotion: false }, true).duration).toBe(350)
     expect(resolveAnimation(false, false).duration).toBe(0)

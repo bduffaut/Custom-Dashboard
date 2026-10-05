@@ -21,7 +21,7 @@
 | `drag-cancel` | none | CSS selector for elements that never start a drag |
 | `remove-on-drop-outside` | `false` | Remove a widget dropped outside every grid, undoable |
 | `size-to-content` | `false` | Size every widget to its content, a number caps the rows |
-| `animation` | `smooth` | A preset, `true`, `false`, or `{ preset, duration, easing, enter, leave, respectReducedMotion }` |
+| `animation` | `smooth` | A preset, `true`, `false`, or `{ preset, duration, easing, enter, appear, stagger, leave, respectReducedMotion }`, see [Animation](features.md#animation) |
 | `breakpoints` | off | `true` for 12, 6 and 1 columns at 1024, 640 and 0 px, or `{ name: { width, columns } }` |
 | `breakpoint-layout` | `scale` | `scale` keeps proportions on narrow screens, `list` stacks widgets in reading order |
 | `breakpoints-from` | `container` | Measure breakpoints against the grid width or the `window` |
@@ -34,6 +34,11 @@
 | `accept-drops` | `true` | Accept widgets from other grids or outside, or a function `(widget) => boolean` |
 | `lazy` | `false` | Render content only once it scrolls near view, a number sets how many px early |
 | `guides` | `true` | Show column guides while dragging or resizing |
+| `show-cells` | `false` | Draw every grid cell behind the widgets, `true` always or `editing` only in edit mode |
+| `keyboard` | `true` | Keyboard editing in edit mode, see [Keyboard editing](features.md#keyboard-editing) |
+| `selectable` | `false` | Click, Shift+click and box selection, see [Multi select](features.md#multi-select) |
+| `snap-guides` | `false` | Lines where a moving widget lines up with others |
+| `widget-label` | none | `(widget) => string`, the name used in keyboard announcements, defaults to `props.title`, then `type`, then `id` |
 
 ## Events
 
@@ -49,6 +54,7 @@
 | `undo`, `redo` | None |
 | `breakpoint-change` | The new breakpoint name |
 | `widget-error` | `(widget, error)` when a widget crashes and shows its fallback |
+| `selection-change` | The selected ids |
 
 ## Methods
 
@@ -63,8 +69,13 @@ const grid = useTemplateRef<DashboardGridApi>('grid')
 
 | Method | Description |
 |---|---|
-| `addWidget(widget)` | Adds in the first free spot, or at `x`, `y` if given. Generates an id if missing. Returns the widget, or `null` if there is no room |
+| `addWidget(widget, { scrollIntoView? })` | Adds a widget, or a function that builds one, in the first free spot or at `x`, `y`. Generates an id if missing. Returns the widget, or `null` if there is no room |
 | `removeWidget(id)` | Removes a widget |
+| `removeWidgets(ids)` | Removes several widgets as one undo step |
+| `select(ids, mode?)` | Select ids, `mode` is `replace` (default), `add` or `toggle` |
+| `selectAll()`, `clearSelection()` | Select every widget or none |
+| `selection` | Selected ids, reactive |
+| `playEnter(ids?)` | Play the arrival animation again for some widgets or all of them |
 | `updateWidget(id, patch)` | Change any fields, like `{ props }` or `{ w: 6 }` |
 | `collapseWidget(id, collapsed?)` | Collapse, expand or toggle |
 | `setPinMode(id, mode)` | `free`, `pinned`, `locked` or `no-resize`, undoable |
@@ -89,8 +100,10 @@ Call it in any component rendered inside a widget.
 | `interaction` | `drag`, `resize` or `null` |
 | `editable` | Whether the dashboard is in edit mode |
 | `collapsed` | Whether it is collapsed to its header |
+| `selected` | Whether it is part of the selection |
 | `remove()` | Remove it |
-| `update(patch)` | Save fields into the dashboard, like `update({ props })` |
+| `update(patch)` | Save fields into the dashboard, like `update({ minW: 2 })` |
+| `updateProps(patch)` | Merge values into this widget's props, keeping the rest, like `updateProps({ text })` |
 | `collapse(value?)` | Toggle, or pass `true` or `false` |
 | `pinMode` | `free`, `pinned`, `locked` or `no-resize` |
 | `setPinMode(mode)` | Change it, undoable |
@@ -99,7 +112,7 @@ Call it in any component rendered inside a widget.
 
 | Slot | Props | Use |
 |---|---|---|
-| default | `{ widget, interaction, editable, collapsed, remove, update, collapse, pinMode, setPinMode }` | Render widgets yourself instead of using `components` |
+| default | `{ widget, interaction, editable, collapsed, selected, remove, update, updateProps, collapse, pinMode, setPinMode }` | Render widgets yourself instead of using `components` |
 | `error` | `{ widget, error, retry }` | Replace the fallback shown when a widget crashes |
 
 ## Directives
@@ -115,13 +128,15 @@ Call it in any component rendered inside a widget.
 |---|---|
 | `DashboardGrid` | The grid component |
 | `useWidget` | Widget context, see above |
+| `useDragState` | Reactive info about the current drag, see [Drag state](features.md#drag-state) |
+| `useWidgetCatalog` | Search and grouping for a widget palette, see [Widget palettes](features.md#widget-palettes) |
 | `vDraggableWidget`, `vWidgetTrash` | The directives |
 | `useLayoutStorage`, `useSavedLayouts` | localStorage helpers, see [Saving and loading](features.md#saving-and-loading) |
 | `parseLayout`, `serializeLayout`, `toSavedLayout` | Versioned JSON helpers, usable without Vue |
 | `defineWidgets` | Type helper for widgets without `x` and `y` |
 | `createWidgetId` | A unique id like `chart-lq3k9x-4` |
-| `pinModeOf`, `PIN_MODES` | Read a widget's pin mode |
-| `ANIMATION_PRESETS`, `DEFAULT_BREAKPOINTS` | Built in presets |
+| `pinModeOf`, `PIN_MODES`, `PIN_MODE_OPTIONS` | Read a widget's pin mode, and ready made labels for a pin menu |
+| `ANIMATION_PRESETS`, `ENTER_EFFECTS`, `DEFAULT_BREAKPOINTS` | Built in presets and arrival effects |
 | `DashboardGridPlugin` | Optional plugin that registers the component and both directives globally, also the default export |
 
-Types: `GridWidget`, `NewGridWidget`, `WidgetInput`, `DashboardGridApi`, `WidgetContext`, `DropEvent`, `PinMode`, `CompactMode`, `ResizeHandles` and the rest of the option types.
+Types: `GridWidget`, `NewGridWidget`, `WidgetInput`, `WidgetSource`, `DashboardGridApi`, `WidgetContext`, `DragState`, `CatalogEntry`, `EnterEffect`, `DropEvent`, `PinMode`, `CompactMode`, `ResizeHandles` and the rest of the option types.

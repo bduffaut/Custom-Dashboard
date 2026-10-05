@@ -2,7 +2,7 @@
 
 A draggable, resizable dashboard grid for Vue 3. You describe the widgets, it handles dragging, resizing, collisions, responsive layouts, undo, drag and drop between grids, and saving.
 
-- Vue is the only dependency, about 20 kB gzipped
+- Vue is the only dependency, about 24 kB gzipped
 - One `v-model` array of plain JSON, so saving a dashboard is saving an array
 - Bad input is cleaned, a crashing widget cannot take down the page, and Escape cancels any drag
 

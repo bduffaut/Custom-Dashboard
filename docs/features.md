@@ -40,6 +40,41 @@ import { vDraggableWidget } from 'custom-dashboard-grid'
 
 Each drop gets its own copy of the data and a fresh id. A drag only starts after the pointer moves a few px, so plain clicks still work.
 
+## Widget palettes
+
+`useWidgetCatalog` handles search and grouping for an add menu or sidebar. You write the markup, and each entry's `widget` goes straight to `addWidget` or `v-draggable-widget`:
+
+```vue
+<script setup lang="ts">
+import { useWidgetCatalog, vDraggableWidget, type CatalogEntry } from 'custom-dashboard-grid'
+
+const entries: CatalogEntry[] = [
+  { key: 'sales', name: 'Sales chart', category: 'Charts', widget: { type: 'chart', w: 4, h: 3 } },
+  { key: 'notes', name: 'Notes', category: 'Tools', widget: () => ({ type: 'notes', w: 3, h: 3, props: { text: '' } }) },
+]
+const { query, groups } = useWidgetCatalog(entries, { categories: ['Charts', 'Tools'] })
+</script>
+
+<template>
+  <input v-model="query" placeholder="Search" />
+  <section v-for="group in groups" :key="group.category">
+    <h3>{{ group.category }}</h3>
+    <button
+      v-for="entry in group.entries"
+      :key="entry.key"
+      v-draggable-widget="entry.widget"
+      @click="grid.addWidget(entry.widget, { scrollIntoView: true })"
+    >
+      {{ entry.name }}
+    </button>
+  </section>
+</template>
+```
+
+- Search matches every word against name, description and category
+- Entries can carry extra fields, like an icon, and keep their type
+- Use a function for `widget` when every add needs fresh values, otherwise the grid copies the object for you
+
 ## Grids inside widgets
 
 A widget can contain its own `DashboardGrid`. Store the inner widgets in the outer widget's props and save them back with `update`:
@@ -90,7 +125,7 @@ const { pinMode, setPinMode, editable } = useWidget()
 </template>
 ```
 
-Pin changes are undoable. `pinModeOf(widget)` reads a widget's mode anywhere, for example to show a badge.
+Pin changes are undoable. `pinModeOf(widget)` reads a widget's mode anywhere, for example to show a badge. `PIN_MODE_OPTIONS` has a label and description for each mode in menu order, so a menu can be a `v-for` over it.
 
 ## Auto-arrange
 
@@ -104,11 +139,83 @@ Make any element a trash zone. A widget dropped on it is removed as a normal und
 <div v-widget-trash class="trash">Drop here to remove</div>
 ```
 
-- The zone gets `dg-trash--active` while a widget is held over it
-- `<html>` has `dg-dragging` while any widget is dragged, so you can show the zone only then: `html:not(.dg-dragging) .trash { display: none }`
+- The zone gets `dg-trash--armed` while a widget it could take is dragged (not while resizing or dragging in a new widget), so you can show it only then: `.trash:not(.dg-trash--armed) { display: none }`
+- It gets `dg-trash--active` while that widget is held over it, and the dragged copy shrinks and fades
 - `v-widget-trash:reports` limits a zone to one grid group
 
 With `remove-on-drop-outside`, dropping a widget anywhere outside every grid removes it too.
+
+## Drag state
+
+`useDragState()` gives reactive info about whatever is being dragged anywhere on the page:
+
+```ts
+import { useDragState } from 'custom-dashboard-grid'
+
+const drag = useDragState()
+// drag.kind       drag, resize, external or null
+// drag.widget     the widget being dragged or resized
+// drag.group      its grid group
+// drag.overTrash  true while it is held over a trash zone
+```
+
+```vue
+<div v-widget-trash class="trash">{{ drag.overTrash ? 'Release to remove' : 'Drag here to remove' }}</div>
+```
+
+The same info is on `<html>` for pure CSS: the `dg-dragging` class during any drag, `dg-external-dragging` for new widgets dragged in, and `data-dg-interaction` set to `drag`, `resize` or `external`.
+
+## Grid cells
+
+```vue
+<DashboardGrid show-cells="editing" />
+```
+
+Draws every cell behind the widgets so people can see where things will snap. `true` shows them always, `editing` only in edit mode. They brighten while something is dragged or resized. Color them with `--dg-cell-color` and `--dg-cell-active-color`.
+
+## Keyboard editing
+
+On by default in edit mode. Every widget can be reached with Tab, and keys pressed on the widget itself act on it:
+
+| Key | Does |
+|---|---|
+| Arrows | Move one cell, or past a neighbour when gravity would snap it straight back |
+| Shift+arrows | Resize from the bottom right corner |
+| Delete or Backspace | Remove, skipping static widgets |
+| Space or Enter | Add to or remove from the selection, with `selectable` on |
+| Escape | Clear the selection |
+
+Keys typed into inputs inside a widget are left alone. Every change is a normal undo step and is read out by screen readers, like "Risk score moved to column 4, row 2". Name widgets for those messages with `widget-label`. Turn it off with `:keyboard="false"`.
+
+## Multi select
+
+```vue
+<DashboardGrid v-model="widgets" selectable />
+```
+
+- Click a widget to select it, Ctrl, Cmd or Shift+click to add or remove one
+- Drag on empty space to draw a selection box, with a modifier it adds to the selection. In a grid nested inside a widget, hold Shift to start a box
+- Drag any selected widget to move the whole group, it keeps its shape even with gravity on
+- Ctrl+A selects everything, arrow keys move the selection, Delete removes it
+- A group stays in its own grid, so it is not dropped into other grids or trash zones
+
+Use the selection from your own buttons:
+
+```vue
+<button v-if="grid?.selection.length" @click="grid.removeWidgets(grid.selection)">
+  Remove {{ grid.selection.length }}
+</button>
+```
+
+Widgets can style themselves with `useWidget().selected`. The grid adds `dg-item--selected` and draws the box as `.dg-marquee`.
+
+## Snap guides
+
+```vue
+<DashboardGrid snap-guides />
+```
+
+While a widget, a selected group or a widget coming in from outside moves, lines show where its left, center or right edge, or its top, middle or bottom, lines up with another widget. Color them with `--dg-snap-color`.
 
 ## Size to content
 
@@ -132,9 +239,20 @@ With `remove-on-drop-outside`, dropping a widget anywhere outside every grid rem
 ```
 
 - Moves and resizes are CSS transitions on transform, width and height, so the GPU handles them
-- New widgets fade and scale in, removed ones fade out where they were
+- Removed widgets fade out where they were
 - Animation turns off for users who prefer reduced motion, unless you set `respectReducedMotion: false`
 - Presets: `snappy` 120 ms, `smooth` 200 ms (default), `gentle` 350 ms, `bouncy` 420 ms with a slight overshoot
+
+### Arrival
+
+```vue
+<DashboardGrid :animation="{ preset: 'smooth', enter: 'rise', appear: true, stagger: 45 }" />
+```
+
+- `enter` picks how new widgets arrive: `fade`, `scale` (default), `rise`, `drop`, `zoom`, `flip`, or `zip`, which starts each widget slowly below the screen, then accelerates it into place with a small bounce, top first. `false` turns it off
+- `appear` plays it for the widgets already there when the grid first loads
+- `stagger` delays each widget arriving together by that many ms in reading order, for a cascade on load or when a preset loads
+- `grid.playEnter()` replays it on demand, for every widget or the ids you pass
 
 ## Saving and loading
 
@@ -207,16 +325,23 @@ Widget content is entirely yours. Theme the grid's own parts with CSS variables:
   --dg-guide-color: rgba(100, 116, 139, 0.07);  /* column guides while dragging */
   --dg-handle-hover: rgba(100, 116, 139, 0.35); /* edge resize handles on hover */
   --dg-pending-bg: rgba(100, 116, 139, 0.08);   /* lazy widgets not rendered yet */
+  --dg-cell-color: rgba(100, 116, 139, 0.06);   /* show-cells lattice */
+  --dg-cell-active-color: rgba(100, 116, 139, 0.12); /* lattice while dragging */
+  --dg-focus-color: #3b82f6;                     /* keyboard focus ring */
+  --dg-selection-color: #3b82f6;                 /* selected widgets and the selection box */
+  --dg-marquee-bg: rgba(59, 130, 246, 0.08);     /* selection box fill */
+  --dg-snap-color: #ec4899;                      /* snap guide lines */
 }
 ```
 
-The grid also sets `--dg-duration`, `--dg-easing`, `--dg-col-width`, `--dg-gap`, `--dg-row-gap` and `--dg-row-height` on itself for your own styles. The demo uses them to draw the grid cells behind the widgets in edit mode.
+The grid also sets `--dg-duration`, `--dg-easing`, `--dg-col-width`, `--dg-gap`, `--dg-row-gap` and `--dg-row-height` on itself for your own styles.
 
 Classes:
 
-- Grid: `.dg-grid` plus `--editable`, `--readonly`, `--interacting`, `--receiving`
-- Widgets: `.dg-item` plus `--dragging`, `--resizing`, `--collapsed`, `--static`, `--pending`, `--removing`, `--entering`, `--fit`
-- Parts: `.dg-placeholder`, `.dg-resize-handle--{n,s,e,w,ne,nw,se,sw}`, `.dg-ghost`, `.dg-error`, `.dg-trash`, `.dg-trash--active`
-- Page: `html.dg-dragging` while any widget is dragged
+- Grid: `.dg-grid` plus `--editable`, `--readonly`, `--interacting`, `--receiving`, `--cells`, `--selecting`, `--enter-{effect}`
+- Widgets: `.dg-item` plus `--dragging`, `--resizing`, `--collapsed`, `--static`, `--pending`, `--removing`, `--entering`, `--fit`, `--selected`
+- Parts: `.dg-placeholder`, `.dg-resize-handle--{n,s,e,w,ne,nw,se,sw}`, `.dg-ghost`, `.dg-ghost--removing`, `.dg-error`, `.dg-marquee`, `.dg-snap-guide--{vertical,horizontal}`
+- Trash zones: `.dg-trash`, `.dg-trash--armed`, `.dg-trash--active`
+- Page: `html.dg-dragging`, `html.dg-external-dragging` and `html[data-dg-interaction]` while anything is dragged
 
 Each widget wrapper has `data-widget-id` and the grid has `data-breakpoint`.

@@ -77,10 +77,10 @@ Any component rendered in a widget can call `useWidget()` to read and control th
 ```ts
 import { useWidget } from 'custom-dashboard-grid'
 
-const { widget, editable, remove, update, collapse } = useWidget()
+const { widget, editable, remove, updateProps, collapse } = useWidget()
 ```
 
-Save widget state, like settings or notes, back into the dashboard with `update({ props: { ... } })`. See the [API reference](api.md#usewidget) for everything it returns.
+Save widget state, like settings or notes, back into the dashboard with `updateProps({ text })`. It merges into the existing props. See the [API reference](api.md#usewidget) for everything it returns.
 
 Buttons, inputs, links and anything with `data-no-drag` never start a drag, so widget content stays usable.
 
@@ -96,6 +96,13 @@ Buttons, inputs, links and anything with `data-no-drag` never start a drag, so w
 | Named layout presets | `useSavedLayouts(widgets, { key: 'my-dashboard:presets' })` |
 | A sidebar to drag new widgets from | `<div v-draggable-widget="{ type: 'chart', w: 4, h: 3 }">Chart</div>` |
 | A trash can to drag widgets into | `<div v-widget-trash>Remove</div>` |
+| A searchable add menu | `useWidgetCatalog(entries)` |
+| A pin menu | `v-for` over `PIN_MODE_OPTIONS` calling `setPinMode` |
+| Show the grid cells while editing | `show-cells="editing"` |
+| UI that reacts to dragging | `useDragState()` |
+| Select and move several widgets at once | `selectable` |
+| Alignment lines while dragging | `snap-guides` |
+| Widgets that cascade in on load | `:animation="{ enter: 'rise', appear: true, stagger: 40 }"` |
 | A dashboard that never grows past a size | `:max-rows="10"` |
 | Widgets that float left instead of up | `compact="horizontal"` |
 | Heavy widgets rendered only when visible | `lazy` |
@@ -103,5 +110,6 @@ Buttons, inputs, links and anything with `data-no-drag` never start a drag, so w
 | Square cells | `row-height="auto"` |
 | As many columns as fit | `:min-column-width="160"` |
 | Calmer or bouncier motion | `animation="gentle"` or `animation="bouncy"` |
+| Keyboard only editing | On by default in edit mode: Tab to a widget, then arrows, Shift+arrows and Delete |
 
 Next: [Features](features.md) for the details on each of these.

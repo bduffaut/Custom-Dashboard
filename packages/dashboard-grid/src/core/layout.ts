@@ -142,16 +142,24 @@ function settleOverlaps(layout: LayoutItem[], keepId: ItemId): void {
   }
 }
 
+/* Size limits of an item, its own fields first, then the fallback from opts.limits */
+function sizeLimitsOf(item: LayoutItem, opts: LayoutOptions, columns: number) {
+  const fallback = opts.limits?.(item)
+  const minW = clamp(Math.round(num(item.minW ?? fallback?.minW, 1)), 1, columns)
+  const maxW = Math.max(minW, Math.round(num(item.maxW ?? fallback?.maxW, columns)))
+  const minH = Math.max(1, Math.round(num(item.minH ?? fallback?.minH, 1)))
+  const maxH = Math.max(minH, Math.round(num(item.maxH ?? fallback?.maxH, Infinity)))
+  return { minW, maxW, minH, maxH }
+}
+
 /*
  * Apply min and max sizes and keep the item inside the grid
  * A collapsed item keeps the height it is given, its limits apply to the expanded size
  */
 export function clampItem<T extends LayoutItem>(item: T, opts: LayoutOptions): T {
   const { columns, maxRows } = limits(opts)
-  const minW = clamp(Math.round(num(item.minW, 1)), 1, columns)
-  const maxW = clamp(Math.round(num(item.maxW, columns)), minW, columns)
-  const minH = Math.max(1, Math.round(num(item.minH, 1)))
-  const maxH = Math.max(minH, Math.round(num(item.maxH, Infinity)))
+  const { minW, maxH, minH, ...rest } = sizeLimitsOf(item, opts, columns)
+  const maxW = Math.min(rest.maxW, columns)
 
   const w = clamp(Math.round(num(item.w, 1)), minW, maxW)
   const h = item.collapsed
@@ -238,6 +246,39 @@ export function compact<T extends LayoutItem>(layout: readonly T[], mode: Compac
     placed.push(item)
   }
   return out
+}
+
+/*
+ * Gravity that keeps a group in formation, the group floats as one rigid block
+ * Everything else settles around the group first, then the block floats as far as it fits,
+ * then the rest fills the gaps it left
+ */
+export function compactGroup<T extends LayoutItem>(layout: readonly T[], ids: Iterable<ItemId>, mode: CompactMode, opts: LayoutOptions): T[] {
+  if (mode === 'none') return cloneLayout(layout)
+  const wanted = new Set(ids)
+  const block = new Set(layout.filter((item) => wanted.has(item.id) && !item.static).map((item) => item.id))
+  if (!block.size) return compact(layout, mode, opts)
+
+  // Members are pinned while the rest settles, then get their own rules back
+  const pin = (list: readonly T[]) => list.map((item) => (block.has(item.id) ? { ...item, static: true } : item))
+  const unpin = (list: readonly T[]) =>
+    list.map((item) => {
+      if (!block.has(item.id)) return item
+      const copy = { ...item }
+      delete copy.static
+      return copy
+    })
+
+  let out = unpin(compact(pin(layout), mode, opts))
+  const vertical = mode === 'vertical'
+  for (;;) {
+    const shifted = out.map((item) => (block.has(item.id) ? { ...item, x: vertical ? item.x : item.x - 1, y: vertical ? item.y - 1 : item.y } : item))
+    const members = shifted.filter((item) => block.has(item.id))
+    if (members.some((item) => item.x < 0 || item.y < 0)) break
+    if (members.some((item) => shifted.some((other) => !block.has(other.id) && overlaps(item, other)))) break
+    out = shifted
+  }
+  return unpin(compact(pin(out), mode, opts))
 }
 
 /*
@@ -339,23 +380,82 @@ export function moveItem<T extends LayoutItem>(
   if (item.x === original.x && item.y === original.y) return layout
   if (blockedByFixed(out, item)) return layout
 
-  // Swap, a neighbour we land on takes the space we left if it fits
+  // Swap, neighbours we land on fill the space we left, packed one after another so several fit
   // Without this compaction would float the dragged item straight back
-  const movedDown = item.y > original.y
-  const movedSideways = item.y === original.y
-  if (movedDown || movedSideways) {
-    for (const other of out) {
-      if (other === item || isFixed(other, id) || !overlaps(item, other)) continue
-      const swapped = { ...other }
-      if (movedDown) swapped.y = original.y
-      else swapped.x = item.x > original.x ? original.x : original.x + original.w - other.w
-      if (fitsAt(out, swapped, columns)) Object.assign(other, { x: swapped.x, y: swapped.y })
+  const dx = item.x - original.x
+  const dy = item.y - original.y
+  if (dx !== 0 || dy > 0) {
+    const right = dx > 0
+    // Nearest neighbours first, so they keep their order in the space they move into
+    const neighbours = out
+      .filter((other) => other !== item && !isFixed(other, id) && overlaps(item, other))
+      .sort((a, b) => (dx !== 0 ? (right ? a.x - b.x : b.x - a.x) : 0) || a.y - b.y || a.x - b.x)
+    for (const other of neighbours) {
+      const spots: { x: number; y: number }[] = []
+      const sideways: { x: number; y: number }[] = []
+      const downward: { x: number; y: number }[] = []
+      // Columns we left, scanned from the side we came from, at the neighbour's own row
+      if (dx !== 0) {
+        for (let k = 0; k <= original.w - other.w; k++) sideways.push({ x: right ? original.x + k : original.x + original.w - other.w - k, y: other.y })
+      }
+      // Rows we left, scanned from the top, in the neighbour's own column
+      if (dy > 0) {
+        for (let k = 0; k <= original.h - other.h; k++) downward.push({ x: other.x, y: original.y + k })
+      }
+      spots.push(...(Math.abs(dx) >= Math.abs(dy) ? [...sideways, ...downward] : [...downward, ...sideways]))
+      const spot = spots.find((s) => fitsAt(out, { ...other, ...s }, columns))
+      if (spot) Object.assign(other, spot)
     }
   }
 
   pushDown(out, item)
   settleOverlaps(out, id)
   return exceedsRows(out, opts) ? layout : out
+}
+
+/*
+ * Move several items by the same columns and rows, keeping their formation
+ * The shift is clamped so the whole group stays inside the grid, static and noMove members stay put
+ * Returns the original layout if nothing moves, a member lands on a static or locked item, or maxRows blocks it
+ */
+export function moveItems<T extends LayoutItem>(
+  layout: readonly T[],
+  ids: Iterable<ItemId>,
+  dx: number,
+  dy: number,
+  opts: LayoutOptions,
+): readonly T[] {
+  const wanted = new Set(ids)
+  const out = cloneLayout(layout)
+  const group = out.filter((item) => wanted.has(item.id) && !item.static && !item.noMove)
+  if (!group.length) return layout
+
+  const { columns } = limits(opts)
+  let left = Infinity
+  let right = 0
+  let top = Infinity
+  for (const item of group) {
+    left = Math.min(left, item.x)
+    right = Math.max(right, item.x + item.w)
+    top = Math.min(top, item.y)
+  }
+  const shiftX = clamp(Math.round(num(dx, 0)), -left, columns - right)
+  const shiftY = Math.max(Math.round(num(dy, 0)), -top)
+  if (!shiftX && !shiftY) return layout
+
+  const members = new Set(group.map((item) => item.id))
+  for (const item of group) {
+    item.x += shiftX
+    item.y += shiftY
+  }
+  for (const item of group) {
+    for (const other of out) {
+      if (!members.has(other.id) && (other.static || other.locked) && overlaps(item, other)) return layout
+    }
+  }
+  // Members keep their new spots and everything else moves down out of the way
+  const next = resolveCollisions(out, (item) => members.has(item.id))
+  return exceedsRows(next, opts) ? layout : next
 }
 
 /*
@@ -375,10 +475,7 @@ export function resizeItem<T extends LayoutItem>(
   if (!item || item.static || item.noResize) return layout
 
   const { columns, maxRows } = limits(opts)
-  const minW = clamp(Math.round(num(item.minW, 1)), 1, columns)
-  const maxW = Math.max(minW, Math.round(num(item.maxW, columns)))
-  const minH = Math.max(1, Math.round(num(item.minH, 1)))
-  const maxH = Math.max(minH, Math.round(num(item.maxH, Infinity)))
+  const { minW, maxW, minH, maxH } = sizeLimitsOf(item, opts, columns)
   let { x, y, w, h } = item
 
   if (handle.includes('e')) {

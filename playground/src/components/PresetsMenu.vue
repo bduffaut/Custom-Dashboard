@@ -71,6 +71,16 @@ const when = (iso: string) => {
 
 .presets__chev {
   color: var(--text-faint);
+  transition: transform 0.25s;
+}
+
+.presets__trigger.is-on .presets__chev {
+  transform: rotate(180deg);
+}
+
+.presets__load:hover:not(:disabled) {
+  background: var(--surface-3);
+  box-shadow: inset 2px 0 0 var(--accent);
 }
 
 .presets__panel {
@@ -121,6 +131,10 @@ li {
 }
 
 .presets__load {
+  border-radius: var(--radius-sm);
+  transition:
+    background 0.15s,
+    box-shadow 0.2s;
   flex: 1;
   min-width: 0;
   display: flex;

@@ -1,9 +1,9 @@
 import type { ObjectDirective } from 'vue'
 import { beginExternalDrag } from './dnd'
-import type { NewGridWidget } from './types'
+import type { WidgetSource } from './types'
 
 /* A widget to create on drop, or a function returning a fresh one per drop */
-export type DraggableWidgetValue = NewGridWidget | (() => NewGridWidget | null | undefined) | null | undefined
+export type DraggableWidgetValue = WidgetSource | null | undefined
 
 interface Entry {
   value: DraggableWidgetValue

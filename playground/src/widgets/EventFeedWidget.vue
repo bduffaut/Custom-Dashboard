@@ -1,12 +1,17 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Pause, Play, Siren } from 'lucide-vue-next'
+import { useWidgetBox } from '../composables/useWidgetSize'
 import { SEVERITIES, useSoc, type SecurityEvent, type Severity } from '../data/soc'
 import WidgetCard from './WidgetCard.vue'
 
 // Live event stream with filters and a pause toggle, buttons never start a drag
+// Narrow keeps just severity and message, wide spreads each event across columns
 
 const soc = useSoc()
+const root = ref<HTMLElement>()
+const { width } = useWidgetBox(root)
+const layout = computed(() => (width.value < 380 ? 'narrow' : width.value >= 820 ? 'wide' : 'normal'))
 const filter = ref<Severity | 'all'>('all')
 const paused = ref(false)
 const frozen = ref<SecurityEvent[]>([])
@@ -32,7 +37,7 @@ const time = (d: Date) => d.toLocaleTimeString([], { hour12: false })
         <Pause v-else :size="13" />
       </button>
     </template>
-    <div class="feed">
+    <div ref="root" class="feed" :class="`feed--${layout}`">
       <div class="feed__filters" role="group" aria-label="Filter by severity">
         <button :class="{ 'is-on': filter === 'all' }" @click="filter = 'all'">All</button>
         <button
@@ -49,6 +54,7 @@ const time = (d: Date) => d.toLocaleTimeString([], { hour12: false })
         <li v-for="event in events" :key="event.id" class="feed__row">
           <span class="feed__time mono">{{ time(event.time) }}</span>
           <span class="badge" :class="`sev-${event.severity}`">{{ event.severity }}</span>
+          <span class="feed__dot" :class="`sev-${event.severity}`" :title="event.severity" />
           <span class="feed__msg">{{ event.message }}</span>
           <span class="feed__route mono">{{ event.source }} → {{ event.target }}</span>
         </li>
@@ -84,7 +90,8 @@ const time = (d: Date) => d.toLocaleTimeString([], { hour12: false })
 
 .feed__filters button.is-on {
   opacity: 1;
-  border-color: var(--border-strong);
+  border-color: rgb(34 211 238 / 0.5);
+  box-shadow: 0 0 10px -2px var(--cyan-glow);
 }
 
 .feed__list {
@@ -104,17 +111,69 @@ const time = (d: Date) => d.toLocaleTimeString([], { hour12: false })
   padding: 7px 12px;
   border-bottom: 1px solid var(--grid-line);
   font-size: 13px;
-  animation: slide-in 0.3s ease;
+  animation: slide-in 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition: background 0.15s;
+}
+
+.feed__row:hover {
+  background: linear-gradient(90deg, var(--cyan-soft), transparent 60%);
+  box-shadow: inset 2px 0 0 var(--cyan);
+}
+
+.feed__dot {
+  display: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--badge-color);
+  box-shadow: 0 0 6px var(--badge-color);
+}
+
+/* Narrow: dot and message only */
+.feed--narrow .feed__row {
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto;
+  align-items: center;
+}
+
+.feed--narrow .feed__time,
+.feed--narrow .feed__route,
+.feed--narrow .feed__row .badge {
+  display: none;
+}
+
+.feed--narrow .feed__dot {
+  display: block;
+}
+
+/* Wide: one line per event with the route in its own column */
+.feed--wide .feed__row {
+  grid-template-columns: 70px 84px 1fr minmax(0, 260px);
+  grid-template-rows: auto;
+  align-items: center;
+}
+
+.feed--wide .feed__route {
+  grid-column: auto;
+  text-align: right;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @keyframes slide-in {
   from {
-    background: var(--accent-soft);
+    background: var(--cyan-soft);
+    transform: translateX(-6px);
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
   }
 }
 
 .feed__time {
-  color: var(--text-faint);
+  color: rgb(34 211 238 / 0.6);
   font-size: 12px;
 }
 

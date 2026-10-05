@@ -22,18 +22,22 @@ Open http://localhost:5173 and click **Edit layout** to start moving things arou
 - Drag and resize widgets, from any side or corner
 - Widgets float up to fill gaps, float left, or stay where dropped
 - Undo and redo, with Ctrl+Z and Ctrl+Y
+- Keyboard editing with screen reader announcements
+- Multi select with Shift+click or a selection box, then move or remove widgets together
+- Snap guides that show where edges line up
 - Edit mode and view mode
 - Responsive layouts for desktop, tablet and phone
 - Drag widgets between grids, into grids nested inside widgets, and in from a sidebar
 - Trash zones and drop outside to remove
 - Pin modes: pinned, locked and resize locked
 - Auto-arrange into the tightest layout
+- Headless helpers for add menus, pin menus and drag aware toolbars, plus a grid cell overlay
 - Widgets that size to their content, collapse to their header or render lazily
 - Save to localStorage, named layout presets and versioned JSON with migrations
-- Animation presets that respect reduced motion
+- Animation presets and arrival effects (fade, scale, rise, drop, zoom, flip, zip up from below) with a cascade on load, all respecting reduced motion
 - Auto-scroll while dragging near an edge
 - Crash-safe widgets and self-repairing layout data
-- Vue is the only dependency, about 20 kB gzipped
+- Vue is the only dependency, about 24 kB gzipped
 
 ## Using it
 

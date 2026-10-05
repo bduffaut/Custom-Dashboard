@@ -17,8 +17,13 @@ export interface GridContext {
   transferring: Ref<ItemId | null>
   /* Id of a widget held over a trash zone, or outside the grid with removal on */
   removing: Ref<ItemId | null>
-  /* Ids of just added widgets, for the enter animation */
-  entering: Ref<ReadonlySet<ItemId>>
+  /* Just added widgets and the delay in ms before each one's enter animation */
+  entering: Ref<ReadonlyMap<ItemId, number>>
+  /* Pixel boxes of the other members while a selected group is dragged */
+  groupPixels: Ref<ReadonlyMap<ItemId, Rect> | null>
+  selected: Ref<ReadonlySet<ItemId>>
+  selectable: ComputedRef<boolean>
+  keyboard: ComputedRef<boolean>
   editable: ComputedRef<boolean>
   draggable: ComputedRef<boolean>
   resizable: ComputedRef<boolean>
@@ -33,11 +38,18 @@ export interface GridContext {
   begin(kind: InteractionKind, id: ItemId, event: PointerEvent, el: HTMLElement, handle?: ResizeHandle): boolean
   remove(id: ItemId): void
   update(id: ItemId, patch: Partial<Omit<GridWidget, 'id'>>): void
+  updateProps(id: ItemId, patch: Record<string, unknown>): void
   setCollapsed(id: ItemId, collapsed?: boolean): void
   setPinMode(id: ItemId, mode: PinMode): void
   reportError(widget: GridWidget, error: unknown): void
   /* A size to content widget reports its content height in px */
   reportContentHeight(id: ItemId, px: number): void
+  /* Pointer pressed on a widget, a modifier toggles it, otherwise it is selected unless already part of the selection */
+  pressSelect(id: ItemId, toggle: boolean): void
+  /* A key pressed while the widget itself has focus */
+  onKey(id: ItemId, event: KeyboardEvent): void
+  /* Name for a widget in labels and announcements */
+  labelFor(widget: GridWidget): string
 }
 
 export const GRID_CONTEXT: InjectionKey<GridContext> = Symbol('dashboard-grid')
@@ -67,6 +79,8 @@ export interface WidgetContext<T extends GridWidget = GridWidget> {
   editable: ComputedRef<boolean>
   /* True while collapsed to its header */
   collapsed: ComputedRef<boolean>
+  /* True while part of the selection */
+  selected: ComputedRef<boolean>
   /* Remove this widget from the dashboard */
   remove(): void
   /*
@@ -74,6 +88,8 @@ export interface WidgetContext<T extends GridWidget = GridWidget> {
    * Use it to save widget state such as settings or a nested grid
    */
   update(patch: Partial<Omit<T, 'id'>>): void
+  /* Merge new values into this widget's props, keeping the rest, like updateProps({ text }) */
+  updateProps(patch: Record<string, unknown>): void
   /* Collapse (true), expand (false) or toggle (no argument), undoable */
   collapse(collapsed?: boolean): void
   /* How this widget may move: free, pinned, locked or no-resize */

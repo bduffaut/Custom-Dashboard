@@ -17,7 +17,7 @@ import {
   Siren,
   Timer,
 } from 'lucide-vue-next'
-import type { NewGridWidget } from 'custom-dashboard-grid'
+import type { CatalogEntry, NewGridWidget, SizeLimits } from 'custom-dashboard-grid'
 import AttackOriginsWidget from './AttackOriginsWidget.vue'
 import ClockWidget from './ClockWidget.vue'
 import CrashTestWidget from './CrashTestWidget.vue'
@@ -34,7 +34,7 @@ import TrafficChartWidget from './TrafficChartWidget.vue'
 import VulnerabilityTableWidget from './VulnerabilityTableWidget.vue'
 
 // Everything the app knows about its widget types
-// The grid only needs widgetComponents, the add menus use the rest
+// The grid only needs widgetComponents, the add menus feed catalog to useWidgetCatalog
 
 /* Widget type to component, passed to the components prop */
 export const widgetComponents: Record<string, Component> = {
@@ -54,93 +54,86 @@ export const widgetComponents: Record<string, Component> = {
   runbook: RunbookWidget,
 }
 
+/*
+ * Smallest size each widget type supports, in cells of the main grid (52px rows)
+ * Each one is the size where that widget's most compact view still fits without clipping
+ */
+export const SIZE_LIMITS: Record<string, SizeLimits> = {
+  kpi: { minW: 2, minH: 2 },
+  traffic: { minW: 4, minH: 3 },
+  severity: { minW: 3, minH: 2 },
+  risk: { minW: 2, minH: 3 },
+  origins: { minW: 3, minH: 3 },
+  events: { minW: 3, minH: 3 },
+  vulns: { minW: 4, minH: 3 },
+  hosts: { minW: 3, minH: 3 },
+  firewall: { minW: 3, minH: 3 },
+  notes: { minW: 2, minH: 2 },
+  clock: { minW: 3, minH: 2 },
+  incident: { minW: 4, minH: 5 },
+  crash: { minW: 3, minH: 3 },
+  runbook: { minW: 3 },
+}
+
+/* The same limits for a grid with different row and gap sizes, so content keeps the same room in pixels */
+export function limitsForRows(rowHeight: number, gap: number): Record<string, SizeLimits> {
+  const step = (rows: number) => rows * 52 + (rows - 1) * 12
+  return Object.fromEntries(
+    Object.entries(SIZE_LIMITS).map(([type, l]) => [
+      type,
+      { ...l, minH: l.minH ? Math.ceil((step(l.minH) + gap) / (rowHeight + gap)) : undefined },
+    ]),
+  )
+}
+
 export type Category = 'Monitoring' | 'Threat intel' | 'Assets' | 'Response' | 'Testing'
 export const CATEGORIES: Category[] = ['Monitoring', 'Threat intel', 'Assets', 'Response', 'Testing']
 
-/* One add menu entry, several can share a type with different props */
-export interface CatalogEntry {
-  key: string
-  type: string
-  name: string
+/* A library catalog entry plus an icon, with a plain widget so menus can show its size */
+export interface PaletteEntry extends CatalogEntry {
   description: string
   category: Category
   icon: Component
-  w: number
-  h: number
-  minW?: number
-  minH?: number
-  /* Height follows the content */
-  sizeToContent?: boolean | number
-  props?: () => Record<string, unknown>
+  widget: NewGridWidget
 }
 
-export const catalog: CatalogEntry[] = [
-  { key: 'kpi-alerts', type: 'kpi', name: 'Alert count', description: 'Alerts in the last 24 hours with trend', category: 'Monitoring', icon: ShieldAlert, w: 3, h: 2, minW: 2, props: () => ({ metric: 'alerts' }) },
-  { key: 'kpi-blocked', type: 'kpi', name: 'Blocked requests', description: 'Requests stopped at the edge', category: 'Monitoring', icon: Ban, w: 3, h: 2, minW: 2, props: () => ({ metric: 'blocked' }) },
-  { key: 'kpi-mttr', type: 'kpi', name: 'Mean time to respond', description: 'Average minutes from alert to triage', category: 'Response', icon: Timer, w: 3, h: 2, minW: 2, props: () => ({ metric: 'mttr' }) },
-  { key: 'kpi-endpoints', type: 'kpi', name: 'Endpoints online', description: 'Agents currently reporting in', category: 'Assets', icon: MonitorCheck, w: 3, h: 2, minW: 2, props: () => ({ metric: 'endpoints' }) },
-  { key: 'traffic', type: 'traffic', name: 'Network traffic', description: 'Allowed vs blocked requests per second', category: 'Monitoring', icon: Activity, w: 8, h: 5, minW: 4, minH: 3 },
-  { key: 'events', type: 'events', name: 'Security event feed', description: 'Live SIEM stream with severity filters', category: 'Monitoring', icon: Siren, w: 7, h: 6, minW: 4, minH: 3 },
-  { key: 'severity', type: 'severity', name: 'Alerts by severity', description: 'Critical, high, medium and low counts', category: 'Monitoring', icon: ShieldAlert, w: 4, h: 3, minW: 3, minH: 2 },
-  { key: 'risk', type: 'risk', name: 'Risk score', description: 'Overall posture gauge from 0 to 100', category: 'Threat intel', icon: Gauge, w: 4, h: 3, minW: 2, minH: 3 },
-  { key: 'origins', type: 'origins', name: 'Attack origins', description: 'Top source countries by attempts', category: 'Threat intel', icon: Globe, w: 5, h: 6, minW: 3, minH: 3 },
-  { key: 'vulns', type: 'vulns', name: 'Vulnerabilities', description: 'Sortable CVE table with CVSS scores', category: 'Threat intel', icon: Bug, w: 7, h: 6, minW: 4, minH: 3 },
-  { key: 'hosts', type: 'hosts', name: 'Asset health map', description: 'Every host as a status square', category: 'Assets', icon: Server, w: 5, h: 6, minW: 3, minH: 3 },
-  { key: 'firewall', type: 'firewall', name: 'Firewall blocklist', description: 'Block and unblock IPs, saved in the layout', category: 'Response', icon: ShieldBan, w: 4, h: 4, minW: 3, minH: 3, props: () => ({ ips: [] }) },
+export const catalog: PaletteEntry[] = [
+  { key: 'kpi-alerts', name: 'Alert count', description: 'Alerts in the last 24 hours with trend', category: 'Monitoring', icon: ShieldAlert, widget: { type: 'kpi', w: 3, h: 2, props: { metric: 'alerts' } } },
+  { key: 'kpi-blocked', name: 'Blocked requests', description: 'Requests stopped at the edge', category: 'Monitoring', icon: Ban, widget: { type: 'kpi', w: 3, h: 2, props: { metric: 'blocked' } } },
+  { key: 'kpi-mttr', name: 'Mean time to respond', description: 'Average minutes from alert to triage', category: 'Response', icon: Timer, widget: { type: 'kpi', w: 3, h: 2, props: { metric: 'mttr' } } },
+  { key: 'kpi-endpoints', name: 'Endpoints online', description: 'Agents currently reporting in', category: 'Assets', icon: MonitorCheck, widget: { type: 'kpi', w: 3, h: 2, props: { metric: 'endpoints' } } },
+  { key: 'traffic', name: 'Network traffic', description: 'Allowed vs blocked requests per second', category: 'Monitoring', icon: Activity, widget: { type: 'traffic', w: 8, h: 5 } },
+  { key: 'events', name: 'Security event feed', description: 'Live SIEM stream with severity filters', category: 'Monitoring', icon: Siren, widget: { type: 'events', w: 7, h: 6 } },
+  { key: 'severity', name: 'Alerts by severity', description: 'Critical, high, medium and low counts', category: 'Monitoring', icon: ShieldAlert, widget: { type: 'severity', w: 4, h: 3 } },
+  { key: 'risk', name: 'Risk score', description: 'Overall posture gauge from 0 to 100', category: 'Threat intel', icon: Gauge, widget: { type: 'risk', w: 4, h: 3 } },
+  { key: 'origins', name: 'Attack origins', description: 'Top source countries by attempts', category: 'Threat intel', icon: Globe, widget: { type: 'origins', w: 5, h: 6 } },
+  { key: 'vulns', name: 'Vulnerabilities', description: 'Sortable CVE table with CVSS scores', category: 'Threat intel', icon: Bug, widget: { type: 'vulns', w: 7, h: 6 } },
+  { key: 'hosts', name: 'Asset health map', description: 'Every host as a status square', category: 'Assets', icon: Server, widget: { type: 'hosts', w: 5, h: 6 } },
+  { key: 'firewall', name: 'Firewall blocklist', description: 'Block and unblock IPs, saved in the layout', category: 'Response', icon: ShieldBan, widget: { type: 'firewall', w: 4, h: 4, props: { ips: [] } } },
   {
     key: 'runbook',
-    type: 'runbook',
     name: 'Runbook checklist',
-    description: 'Steps to follow; grows to fit as you add them',
+    description: 'Steps to follow, grows to fit as you add them',
     category: 'Response',
     icon: ListChecks,
-    w: 4,
-    h: 3,
-    minW: 3,
-    sizeToContent: true,
-    props: () => ({ steps: [{ text: 'Isolate affected host', done: false }] }),
+    widget: { type: 'runbook', w: 4, h: 3, sizeToContent: true, props: { steps: [{ text: 'Isolate affected host', done: false }] } },
   },
-  { key: 'notes', type: 'notes', name: 'Analyst notes', description: 'Free text, saved in the layout', category: 'Response', icon: NotebookPen, w: 4, h: 4, minW: 2, minH: 2, props: () => ({ text: '' }) },
-  { key: 'clock', type: 'clock', name: 'Shift clock', description: 'UTC, local time and shift progress', category: 'Response', icon: Clock, w: 4, h: 3, minW: 3, minH: 2 },
+  { key: 'notes', name: 'Analyst notes', description: 'Free text, saved in the layout', category: 'Response', icon: NotebookPen, widget: { type: 'notes', w: 4, h: 4, props: { text: '' } } },
+  { key: 'clock', name: 'Shift clock', description: 'UTC, local time and shift progress', category: 'Response', icon: Clock, widget: { type: 'clock', w: 4, h: 3 } },
   {
     key: 'incident',
-    type: 'incident',
     name: 'Incident workspace',
     description: 'A group with its own grid of widgets inside',
     category: 'Response',
     icon: Layers,
-    w: 8,
-    h: 8,
-    minW: 4,
-    minH: 5,
-    props: () => ({ incidentId: `INC-${Math.floor(1000 + Math.random() * 9000)}`, widgets: [] }),
+    widget: { type: 'incident', w: 8, h: 8, props: { widgets: [] } },
   },
   {
     key: 'crash',
-    type: 'crash',
     name: 'Unstable parser',
     description: 'Crashes on demand to show the error boundary',
     category: 'Testing',
     icon: Bomb,
-    w: 4,
-    h: 3,
-    minW: 3,
-    minH: 2,
+    widget: { type: 'crash', w: 4, h: 3 },
   },
 ]
-
-/*
- * A new widget from a catalog entry, without id, x or y so the grid fills them in
- * Called fresh for every add or drop so props are never shared
- */
-export function widgetTemplate(entry: CatalogEntry): NewGridWidget {
-  return {
-    type: entry.type,
-    w: entry.w,
-    h: entry.h,
-    minW: entry.minW,
-    minH: entry.minH,
-    sizeToContent: entry.sizeToContent,
-    props: entry.props?.() ?? {},
-  }
-}

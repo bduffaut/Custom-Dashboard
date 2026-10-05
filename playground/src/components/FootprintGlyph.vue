@@ -24,6 +24,7 @@ const height = computed(() => rows.value * (CELL + GAP) - GAP)
         :width="CELL"
         :height="CELL"
         :class="c <= w ? 'on' : 'off'"
+        :style="{ '--i': c + r }"
       />
     </template>
   </svg>
@@ -37,10 +38,19 @@ const height = computed(() => rows.value * (CELL + GAP) - GAP)
 
 .on {
   fill: var(--accent);
-  opacity: 0.75;
+  opacity: 0.6;
 }
 
 .off {
   fill: var(--surface-3);
 }
+
+/* Cells change one diagonal at a time, so a parent hover sweeps across the glyph */
+rect {
+  transition:
+    fill 0.25s,
+    opacity 0.25s;
+  transition-delay: calc(var(--i) * 14ms);
+}
+
 </style>

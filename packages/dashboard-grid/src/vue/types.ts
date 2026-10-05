@@ -14,6 +14,14 @@ export interface GridWidget extends LayoutItem {
 /* A widget to add, id, x and y are optional */
 export type NewGridWidget<T extends GridWidget = GridWidget> = Omit<T, 'id' | 'x' | 'y'> & Partial<Pick<T, 'id' | 'x' | 'y'>>
 
+/* A widget to add, or a function that builds a fresh one each time it is used */
+export type WidgetSource<T extends GridWidget = GridWidget> = NewGridWidget<T> | (() => NewGridWidget<T> | null | undefined)
+
+export interface AddWidgetOptions {
+  /* Smoothly scroll the new widget into view once it renders */
+  scrollIntoView?: boolean
+}
+
 /* A widget in a starting layout, without x and y it goes in the first free spot */
 export type WidgetInput<T extends GridWidget = GridWidget> = Omit<T, 'x' | 'y'> & Partial<Pick<T, 'x' | 'y'>>
 

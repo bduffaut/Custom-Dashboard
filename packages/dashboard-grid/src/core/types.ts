@@ -51,9 +51,19 @@ export type Layout = LayoutItem[]
  */
 export type CompactMode = 'vertical' | 'horizontal' | 'none'
 
+/* Smallest and largest size in grid cells */
+export interface SizeLimits {
+  minW?: number
+  maxW?: number
+  minH?: number
+  maxH?: number
+}
+
 /* Limits every layout operation respects */
 export interface LayoutOptions {
   columns: number
   /* Nothing may extend below this many rows */
   maxRows?: number
+  /* Fallback size limits for an item, used for any limit the item does not set itself */
+  limits?: (item: LayoutItem) => SizeLimits | undefined
 }

@@ -5,9 +5,12 @@ import {
   useLayoutStorage,
   useSavedLayouts,
   type AnimationPreset,
+  type AnimationSetting,
   type BreakpointLayout,
   type CompactMode,
   type DashboardGridApi,
+  type EnterEffect,
+  type GridWidget,
   type ResizeHandles,
 } from 'custom-dashboard-grid'
 import { Braces, Check, Copy, Pencil, Radar, X } from 'lucide-vue-next'
@@ -17,7 +20,7 @@ import PresetsMenu from './components/PresetsMenu.vue'
 import SignalStrip from './components/SignalStrip.vue'
 import WidgetLibrary from './components/WidgetLibrary.vue'
 import { defaultLayout } from './data/defaultLayout'
-import { catalog, widgetComponents, widgetTemplate, type CatalogEntry } from './widgets/catalog'
+import { catalog, SIZE_LIMITS, widgetComponents, type PaletteEntry } from './widgets/catalog'
 
 // Playground for custom-dashboard-grid, it only uses what the package exports
 //
@@ -36,11 +39,28 @@ const presets = useSavedLayouts(widgets, { key: 'custom-dashboard:presets', vers
 const grid = useTemplateRef<DashboardGridApi>('grid')
 const editing = ref(false)
 const compactMode = ref<CompactMode>('vertical')
-const handles = ref<ResizeHandles>('all')
+const handles = ref<Extract<ResizeHandles, string>>('all')
 const showHandles = ref<'auto' | 'always' | 'hover'>('auto')
 const animation = ref<AnimationPreset>('smooth')
+const arrival = ref<EnterEffect>('zip')
+const cascade = ref(true)
 const breakpointLayout = ref<BreakpointLayout>('scale')
 const removeOutside = ref(false)
+const keyboard = ref(true)
+const selectable = ref(true)
+const snapGuides = ref(true)
+
+// Speed preset plus the arrival effect, cascading in reading order on load when turned on
+const motion = computed<AnimationSetting>(() =>
+  animation.value === 'none' ? 'none' : { preset: animation.value, enter: arrival.value, appear: cascade.value, stagger: cascade.value ? 55 : 0 },
+)
+
+// Names read out by keyboard announcements, taken from the catalog
+function widgetLabel(widget: GridWidget): string {
+  const metric = widget.props?.metric
+  const entry = catalog.find((e) => e.widget.type === widget.type && (!metric || e.widget.props?.metric === metric))
+  return entry?.name ?? widget.type ?? widget.id
+}
 const showJson = ref(false)
 const copied = ref(false)
 
@@ -50,10 +70,8 @@ const columns = computed(() => grid.value?.columns ?? 12)
 
 const json = computed(() => JSON.stringify(widgets.value, null, 2))
 
-function add(entry: CatalogEntry) {
-  const widget = grid.value?.addWidget(widgetTemplate(entry))
-  // Scroll the new widget into view, it may land below the fold
-  if (widget) setTimeout(() => document.querySelector(`[data-widget-id="${widget.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 250)
+function add(entry: PaletteEntry) {
+  grid.value?.addWidget(entry.widget, { scrollIntoView: true })
 }
 
 async function copyJson() {
@@ -101,7 +119,7 @@ async function copyJson() {
     <WidgetLibrary v-if="editing" class="page__library" :entries="catalog" @add="add" />
 
     <div class="page__board">
-      <div class="board" :class="{ 'board--editing': editing }">
+      <div class="board">
         <DashboardGrid
           ref="grid"
           v-model="widgets"
@@ -110,20 +128,26 @@ async function copyJson() {
           breakpoints
           lazy
           :guides="false"
+          show-cells="editing"
           :row-height="52"
           :gap="12"
           :compact="compactMode"
           :resize-handles="handles"
           :show-handles="showHandles"
-          :animation="animation"
+          :animation="motion"
           :breakpoint-layout="breakpointLayout"
           :remove-on-drop-outside="removeOutside"
+          :keyboard="keyboard"
+          :selectable="selectable"
+          :snap-guides="snapGuides"
+          :widget-label="widgetLabel"
+          :size-limits="SIZE_LIMITS"
         />
       </div>
       <p class="hint">
         <template v-if="editing">
-          Drag a card to move it, drag any edge or corner to resize, and drag cards in and out of the incident workspace. Ctrl+Z undoes,
-          Ctrl+Y redoes.
+          Drag a card to move it and any edge or corner to resize. Shift+click or drag a box on empty space to select several. Tab to a
+          card, then use the arrows to move it, Shift+arrows to resize and Delete to remove. Ctrl+Z undoes, Ctrl+Y redoes.
         </template>
         <template v-else>Resize the window to see the tablet and phone layouts. Collapse any card with its arrow.</template>
       </p>
@@ -150,9 +174,15 @@ async function copyJson() {
         v-model:handles="handles"
         v-model:show-handles="showHandles"
         v-model:animation="animation"
+        v-model:arrival="arrival"
+        v-model:cascade="cascade"
         v-model:breakpoint-layout="breakpointLayout"
         v-model:remove-outside="removeOutside"
+        v-model:keyboard="keyboard"
+        v-model:selectable="selectable"
+        v-model:snap-guides="snapGuides"
         placement="up"
+        @replay="grid?.playEnter()"
       />
     </template>
   </CommandDock>
@@ -201,6 +231,21 @@ async function copyJson() {
   background: var(--accent-soft);
   border: 1px solid rgb(45 212 191 / 0.35);
   clip-path: polygon(0 0, calc(100% - 9px) 0, 100% 9px, 100% 100%, 0 100%);
+}
+
+.brand__mark svg {
+  transition: transform 0.2s;
+}
+
+/* The radar sweeps once when the brand is hovered */
+.brand:hover .brand__mark svg {
+  animation: sweep 1.1s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+@keyframes sweep {
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 .brand__text {
@@ -269,6 +314,8 @@ async function copyJson() {
 }
 
 .edit-toggle {
+  position: relative;
+  overflow: hidden;
   font-weight: 600;
   background: var(--accent);
   border-color: transparent;
@@ -278,6 +325,21 @@ async function copyJson() {
 .edit-toggle:hover:not(:disabled) {
   background: var(--accent-strong);
   border-color: transparent;
+}
+
+/* A light sheen passes over the button on hover */
+.edit-toggle::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 35%, rgb(255 255 255 / 0.35) 50%, transparent 65%);
+  transform: translateX(-120%);
+  pointer-events: none;
+}
+
+.edit-toggle:hover::after {
+  transform: translateX(120%);
+  transition: transform 0.7s ease;
 }
 
 .edit-toggle.is-on {

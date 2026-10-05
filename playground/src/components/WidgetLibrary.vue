@@ -1,22 +1,15 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { vDraggableWidget } from 'custom-dashboard-grid'
+import { useWidgetCatalog, vDraggableWidget } from 'custom-dashboard-grid'
 import { Search } from 'lucide-vue-next'
-import { CATEGORIES, widgetTemplate, type CatalogEntry } from '../widgets/catalog'
+import { CATEGORIES, type PaletteEntry } from '../widgets/catalog'
 import FootprintGlyph from './FootprintGlyph.vue'
 
 // Edit mode drawer, drag entries onto any grid or click to add in the first free spot
 
-const props = defineProps<{ entries: CatalogEntry[] }>()
-const emit = defineEmits<{ add: [entry: CatalogEntry] }>()
+const props = defineProps<{ entries: PaletteEntry[] }>()
+const emit = defineEmits<{ add: [entry: PaletteEntry] }>()
 
-const query = ref('')
-
-const groups = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  const matches = props.entries.filter((e) => !q || `${e.name} ${e.description} ${e.category}`.toLowerCase().includes(q))
-  return CATEGORIES.map((category) => ({ category, items: matches.filter((e) => e.category === category) })).filter((g) => g.items.length)
-})
+const { query, groups } = useWidgetCatalog(() => props.entries, { categories: CATEGORIES })
 </script>
 
 <template>
@@ -33,9 +26,9 @@ const groups = computed(() => {
       <section v-for="group in groups" :key="group.category">
         <h3>{{ group.category }}</h3>
         <button
-          v-for="entry in group.items"
+          v-for="entry in group.entries"
           :key="entry.key"
-          v-draggable-widget="() => widgetTemplate(entry)"
+          v-draggable-widget="entry.widget"
           class="item"
           :title="entry.description"
           @click="emit('add', entry)"
@@ -45,8 +38,8 @@ const groups = computed(() => {
             <span class="item__name">{{ entry.name }}</span>
           </span>
           <span class="item__foot">
-            <FootprintGlyph :w="entry.w" :h="entry.h" />
-            <span class="item__size">{{ entry.w }} × {{ entry.h }}</span>
+            <FootprintGlyph :w="entry.widget.w" :h="entry.widget.h" />
+            <span class="item__size">{{ entry.widget.w }} × {{ entry.widget.h }}</span>
           </span>
         </button>
       </section>
@@ -142,9 +135,49 @@ h3 {
   cursor: grab;
 }
 
+.item {
+  position: relative;
+  overflow: hidden;
+  transition:
+    border-color 0.2s,
+    transform 0.2s cubic-bezier(0.3, 1.3, 0.5, 1),
+    background 0.2s;
+}
+
+/* Accent bar that slides in from the left edge */
+.item::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+  transform: scaleY(0);
+  transition: transform 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
 .item:hover:not(:disabled) {
-  border-color: var(--accent);
-  background: var(--surface-2);
+  border-color: rgb(45 212 191 / 0.5);
+  background: linear-gradient(90deg, rgb(45 212 191 / 0.06), transparent 70%), var(--surface-2);
+  transform: translateX(2px);
+}
+
+.item:hover::before {
+  transform: scaleY(1);
+}
+
+.item__icon {
+  transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.item:hover :deep(.on) {
+  fill: var(--accent-strong);
+  opacity: 1;
+}
+
+.item:hover .item__icon {
+  transform: scale(1.15) rotate(-6deg);
 }
 
 .item:active {

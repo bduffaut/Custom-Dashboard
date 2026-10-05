@@ -18,9 +18,9 @@ const output = computed(() => {
   <WidgetCard title="Log parser (unstable)" :icon="Bomb">
     <div class="parser">
       <ul class="mono">
-        <li v-for="line in output" :key="line">{{ line }}</li>
+        <li v-for="line in output" :key="line"><span class="parser__prompt">&gt;</span> {{ line }}</li>
       </ul>
-      <button class="parser__crash" @click="broken = true">Simulate crash</button>
+      <button class="w-btn w-btn--danger parser__crash" @click="broken = true">Simulate crash</button>
     </div>
   </WidgetCard>
 </template>
@@ -42,10 +42,11 @@ const output = computed(() => {
   color: var(--text-muted);
 }
 
+.parser__prompt {
+  color: var(--cyan);
+}
+
 .parser__crash {
   align-self: flex-start;
-  border-color: var(--critical);
-  color: var(--critical);
-  background: none;
 }
 </style>

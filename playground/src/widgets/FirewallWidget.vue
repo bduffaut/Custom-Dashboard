@@ -4,11 +4,11 @@ import { useWidget } from 'custom-dashboard-grid'
 import { ShieldBan, X } from 'lucide-vue-next'
 import WidgetCard from './WidgetCard.vue'
 
-// Manual IP blocklist saved into the widget props with update, so it survives a reload
+// Manual IP blocklist saved into the widget props with updateProps, so it survives a reload
 // Shows that typing and clicking never drag the widget
 
 const props = withDefaults(defineProps<{ ips?: string[] }>(), { ips: () => [] })
-const { update } = useWidget()
+const { updateProps } = useWidget()
 
 const draft = ref('')
 const IPV4 = /^(25[0-5]|2[0-4]\d|1?\d?\d)(\.(25[0-5]|2[0-4]\d|1?\d?\d)){3}(\/([12]?\d|3[0-2]))?$/
@@ -17,12 +17,12 @@ const duplicate = computed(() => props.ips.includes(draft.value.trim()))
 
 function block() {
   if (!valid.value || duplicate.value) return
-  update({ props: { ips: [draft.value.trim(), ...props.ips] } })
+  updateProps({ ips: [draft.value.trim(), ...props.ips] })
   draft.value = ''
 }
 
 function unblock(ip: string) {
-  update({ props: { ips: props.ips.filter((i) => i !== ip) } })
+  updateProps({ ips: props.ips.filter((i) => i !== ip) })
 }
 </script>
 
@@ -30,14 +30,14 @@ function unblock(ip: string) {
   <WidgetCard title="Firewall blocklist" :icon="ShieldBan">
     <div class="fw">
       <form class="fw__form" @submit.prevent="block">
-        <input v-model="draft" class="mono" placeholder="e.g. 185.220.101.4 or /24" aria-label="IP address to block" />
-        <button type="submit" :disabled="!valid || duplicate">Block</button>
+        <input v-model="draft" class="w-input mono" placeholder="185.220.101.4 or a /24 range" aria-label="IP address to block" />
+        <button class="w-btn w-btn--danger" type="submit" :disabled="!valid || duplicate">Block</button>
       </form>
       <p v-if="draft && !valid" class="fw__hint">Enter an IPv4 address, optionally with a CIDR suffix.</p>
       <p v-else-if="duplicate" class="fw__hint">Already blocked.</p>
       <ul class="fw__list">
         <li v-for="ip in ips" :key="ip">
-          <span class="mono">{{ ip }}</span>
+          <span class="fw__ip mono"><span class="fw__dot" />{{ ip }}</span>
           <button class="fw__remove" :title="`Unblock ${ip}`" @click="unblock(ip)"><X :size="13" /></button>
         </li>
         <li v-if="!ips.length" class="fw__empty">No manual blocks.</li>
@@ -61,19 +61,28 @@ function unblock(ip: string) {
 
 .fw__form input {
   flex: 1;
-  min-width: 0;
-  padding: 5px 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  background: var(--bg);
-  font-size: 12px;
 }
 
-.fw__form button {
+.fw__ip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.fw__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 1px;
   background: var(--critical);
-  border-color: transparent;
-  font-weight: 600;
-  color: #fff;
+  box-shadow: 0 0 6px rgb(208 59 59 / 0.7);
+}
+
+.fw__list li {
+  transition: background 0.15s;
+}
+
+.fw__list li:hover {
+  background: rgb(255 255 255 / 0.025);
 }
 
 .fw__hint {
@@ -110,7 +119,7 @@ function unblock(ip: string) {
 }
 
 .fw__remove:hover {
-  color: var(--text);
+  color: var(--critical);
 }
 
 .fw__empty {

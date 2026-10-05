@@ -1,5 +1,6 @@
 import { warn } from '../core'
 import { createGhost, overflowOf, startAutoScroll, type Ghost } from './dom'
+import { endDragState, startDragState } from './dragState'
 import { cloneData, createWidgetId } from './id'
 import type { DropSource, GridWidget, NewGridWidget } from './types'
 
@@ -207,7 +208,7 @@ export function beginExternalDrag(event: PointerEvent, source: HTMLElement, grou
       snapshots = snapshotDropTargets(group)
       ghost = createGhost(source)
       stopScroll = startAutoScroll(() => pointer, () => target?.element())
-      document.documentElement.classList.add('dg-external-dragging', 'dg-dragging')
+      startDragState('external', group, widget)
     }
     ghost?.moveTo(pointer.x - ghostGrab.x, pointer.y - ghostGrab.y)
     retarget()
@@ -240,7 +241,7 @@ export function beginExternalDrag(event: PointerEvent, source: HTMLElement, grou
     window.removeEventListener('scroll', retarget, true)
     stopScroll?.()
     ghost?.destroy()
-    document.documentElement.classList.remove('dg-external-dragging', 'dg-dragging')
+    if (widget) endDragState()
     cancelActive = null
   }
 

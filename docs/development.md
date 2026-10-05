@@ -27,6 +27,8 @@ packages/dashboard-grid/       the library, published as custom-dashboard-grid
       GridItem.vue             internal, one per widget
       context.ts               provide and inject plumbing, plus useWidget
       dnd.ts, trash.ts         drag between grids, drag in from outside, trash zones
+      dragState.ts             useDragState, shared drag info for the page
+      catalog.ts               useWidgetCatalog, search and grouping for palettes
       storage.ts               useLayoutStorage and useSavedLayouts
   dist/                        build output, what gets published
   README.md                    shipped with the package on npm

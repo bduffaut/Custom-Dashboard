@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { vDraggableWidget } from 'custom-dashboard-grid'
+import { useWidgetCatalog, vDraggableWidget } from 'custom-dashboard-grid'
 import { Plus, Search } from 'lucide-vue-next'
 import { usePopover } from '../composables/usePopover'
-import { CATEGORIES, widgetTemplate, type CatalogEntry } from '../widgets/catalog'
+import { CATEGORIES, type PaletteEntry } from '../widgets/catalog'
 import FootprintGlyph from './FootprintGlyph.vue'
 
 // Searchable menu of widget types, click to add or drag straight onto any grid
@@ -11,7 +11,7 @@ import FootprintGlyph from './FootprintGlyph.vue'
 
 const props = withDefaults(
   defineProps<{
-    entries: CatalogEntry[]
+    entries: PaletteEntry[]
     label?: string
     /* Where the panel opens relative to the button */
     placement?: 'down-left' | 'down-right' | 'up-center'
@@ -20,11 +20,11 @@ const props = withDefaults(
   { label: 'Add widget', placement: 'down-left', compact: false },
 )
 
-const emit = defineEmits<{ add: [entry: CatalogEntry] }>()
+const emit = defineEmits<{ add: [entry: PaletteEntry] }>()
 
 const root = ref<HTMLElement>()
 const search = ref<HTMLInputElement>()
-const query = ref('')
+const { query, groups } = useWidgetCatalog(() => props.entries, { categories: CATEGORIES })
 const open = usePopover(root, () => {
   query.value = ''
   search.value?.focus()
@@ -35,15 +35,8 @@ const panelClass = computed(() => {
   return [`popover--${v}`, `popover--${h}`]
 })
 
-const groups = computed(() => {
-  const q = query.value.trim().toLowerCase()
-  const matches = props.entries.filter(
-    (e) => !q || e.name.toLowerCase().includes(q) || e.description.toLowerCase().includes(q) || e.category.toLowerCase().includes(q),
-  )
-  return CATEGORIES.map((category) => ({ category, items: matches.filter((e) => e.category === category) })).filter((g) => g.items.length)
-})
 
-function choose(entry: CatalogEntry) {
+function choose(entry: PaletteEntry) {
   emit('add', entry)
   open.value = false
 }
@@ -83,16 +76,16 @@ function closeOnDrag(event: PointerEvent) {
           ref="search"
           v-model="query"
           placeholder="Search widgets"
-          @keydown.enter="groups[0]?.items[0] && choose(groups[0].items[0])"
+          @keydown.enter="groups[0]?.entries[0] && choose(groups[0].entries[0])"
         />
       </label>
       <div class="menu__list">
         <section v-for="group in groups" :key="group.category">
           <h3>{{ group.category }}</h3>
           <button
-            v-for="entry in group.items"
+            v-for="entry in group.entries"
             :key="entry.key"
-            v-draggable-widget="() => widgetTemplate(entry)"
+            v-draggable-widget="entry.widget"
             class="menu__item"
             @pointerdown="closeOnDrag"
             @click="choose(entry)"
@@ -102,7 +95,7 @@ function closeOnDrag(event: PointerEvent) {
               <span class="menu__name">{{ entry.name }}</span>
               <span class="menu__desc">{{ entry.description }}</span>
             </span>
-            <FootprintGlyph :w="entry.w" :h="entry.h" />
+            <FootprintGlyph :w="entry.widget.w" :h="entry.widget.h" />
           </button>
         </section>
         <p v-if="!groups.length" class="menu__empty">No widgets match “{{ query }}”. Try a category such as response.</p>
@@ -195,9 +188,37 @@ function closeOnDrag(event: PointerEvent) {
   text-align: left;
 }
 
+.menu__item {
+  transition:
+    background 0.15s,
+    box-shadow 0.2s;
+}
+
 .menu__item:hover,
 .menu__item:focus-visible {
   background: var(--surface-3);
+  box-shadow: inset 2px 0 0 var(--accent);
+}
+
+.menu__item:hover :deep(.on) {
+  fill: var(--accent-strong);
+  opacity: 1;
+}
+
+.menu__icon {
+  transition: transform 0.25s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.menu__item:hover .menu__icon {
+  transform: scale(1.15);
+}
+
+.menu__trigger svg {
+  transition: transform 0.3s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.menu__trigger:hover svg {
+  transform: rotate(90deg);
 }
 
 .menu__icon {

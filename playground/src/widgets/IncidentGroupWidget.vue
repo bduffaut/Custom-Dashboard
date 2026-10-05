@@ -3,36 +3,41 @@ import { computed, useTemplateRef } from 'vue'
 import { DashboardGrid, useWidget, type DashboardGridApi, type GridWidget } from 'custom-dashboard-grid'
 import { Layers, Redo2, Undo2 } from 'lucide-vue-next'
 import AddWidgetMenu from '../components/AddWidgetMenu.vue'
-import { catalog, widgetComponents, widgetTemplate, type CatalogEntry } from './catalog'
+import { catalog, limitsForRows, widgetComponents, type PaletteEntry } from './catalog'
 import WidgetCard from './WidgetCard.vue'
 
 // A grid inside a grid
-// Inner widgets live in props.widgets and save back with update, so the tree is one JSON layout
+// Inner widgets live in props.widgets and save back with updateProps, so the tree is one JSON layout
 // Dragging an inner widget moves just that widget, the header or empty space moves the group
 
 const props = withDefaults(defineProps<{ incidentId?: string; widgets?: GridWidget[] }>(), {
-  incidentId: 'INC-0000',
   widgets: () => [],
 })
 
-const { update, editable } = useWidget()
+const { widget, updateProps, editable } = useWidget()
 const inner = useTemplateRef<DashboardGridApi>('inner')
 
 // No incidents inside incidents in the demo, the library allows any depth
-const entries = computed(() => catalog.filter((e) => e.type !== 'incident'))
+const entries = computed(() => catalog.filter((e) => e.widget.type !== 'incident'))
 const acceptDrop = (widget: GridWidget) => widget.type !== 'incident'
+// Same minimum room in pixels as the main board, converted to this grid's shorter rows
+const limits = limitsForRows(38, 8)
 
-function save(widgets: GridWidget[]) {
-  update({ props: { incidentId: props.incidentId, widgets } })
-}
+// New incidents get a stable number from their widget id
+const label = computed(() => {
+  if (props.incidentId) return props.incidentId
+  let hash = 0
+  for (const char of widget.value.id) hash = (hash * 31 + char.charCodeAt(0)) % 9000
+  return `INC-${1000 + hash}`
+})
 
-function add(entry: CatalogEntry) {
-  inner.value?.addWidget(widgetTemplate(entry))
+function add(entry: PaletteEntry) {
+  inner.value?.addWidget(entry.widget)
 }
 </script>
 
 <template>
-  <WidgetCard :title="`Incident ${incidentId}`" :icon="Layers" flush>
+  <WidgetCard :title="`Incident ${label}`" :icon="Layers" flush>
     <template #actions>
       <span class="badge sev-high">Investigating</span>
       <template v-if="editable">
@@ -56,7 +61,8 @@ function add(entry: CatalogEntry) {
         :editable="editable"
         :accept-drops="acceptDrop"
         resize-handles="all"
-        @update:model-value="save"
+        :size-limits="limits"
+        @update:model-value="(widgets: GridWidget[]) => updateProps({ widgets })"
       />
       <p v-if="!widgets.length" class="incident__empty">Empty incident. Drag widgets here or use + in the header.</p>
     </div>

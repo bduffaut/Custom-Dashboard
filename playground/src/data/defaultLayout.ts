@@ -4,18 +4,18 @@ import { defineWidgets, type GridWidget } from 'custom-dashboard-grid'
 export function defaultLayout(): GridWidget[] {
   // defineWidgets lets entries skip x and y, the grid places those
   return defineWidgets([
-    { id: 'kpi-alerts', type: 'kpi', x: 0, y: 0, w: 3, h: 2, minW: 2, props: { metric: 'alerts' } },
-    { id: 'kpi-blocked', type: 'kpi', x: 3, y: 0, w: 3, h: 2, minW: 2, props: { metric: 'blocked' } },
-    { id: 'kpi-mttr', type: 'kpi', x: 6, y: 0, w: 3, h: 2, minW: 2, props: { metric: 'mttr' } },
-    { id: 'kpi-endpoints', type: 'kpi', x: 9, y: 0, w: 3, h: 2, minW: 2, props: { metric: 'endpoints' } },
-    { id: 'traffic', type: 'traffic', x: 0, y: 2, w: 8, h: 5, minW: 4, minH: 3 },
+    { id: 'kpi-alerts', type: 'kpi', x: 0, y: 0, w: 3, h: 2, props: { metric: 'alerts' } },
+    { id: 'kpi-blocked', type: 'kpi', x: 3, y: 0, w: 3, h: 2, props: { metric: 'blocked' } },
+    { id: 'kpi-mttr', type: 'kpi', x: 6, y: 0, w: 3, h: 2, props: { metric: 'mttr' } },
+    { id: 'kpi-endpoints', type: 'kpi', x: 9, y: 0, w: 3, h: 2, props: { metric: 'endpoints' } },
+    { id: 'traffic', type: 'traffic', x: 0, y: 2, w: 8, h: 5 },
     // Locked, you can move it but other widgets never push it
-    { id: 'risk', type: 'risk', x: 8, y: 2, w: 4, h: 3, minW: 2, minH: 3, locked: true },
-    { id: 'severity', type: 'severity', x: 8, y: 5, w: 4, h: 3, minW: 3, minH: 2 },
-    { id: 'events', type: 'events', x: 0, y: 8, w: 7, h: 6, minW: 4, minH: 3 },
-    { id: 'origins', type: 'origins', x: 7, y: 8, w: 5, h: 6, minW: 3, minH: 3 },
-    { id: 'vulns', type: 'vulns', x: 0, y: 14, w: 7, h: 6, minW: 4, minH: 3 },
-    { id: 'hosts', type: 'hosts', x: 7, y: 14, w: 5, h: 6, minW: 3, minH: 3 },
+    { id: 'risk', type: 'risk', x: 8, y: 2, w: 4, h: 3, locked: true },
+    { id: 'severity', type: 'severity', x: 8, y: 5, w: 4, h: 3 },
+    { id: 'events', type: 'events', x: 0, y: 8, w: 7, h: 6 },
+    { id: 'origins', type: 'origins', x: 7, y: 8, w: 5, h: 6 },
+    { id: 'vulns', type: 'vulns', x: 0, y: 14, w: 7, h: 6 },
+    { id: 'hosts', type: 'hosts', x: 7, y: 14, w: 5, h: 6 },
     {
       id: 'incident-main',
       type: 'incident',
@@ -23,8 +23,6 @@ export function defaultLayout(): GridWidget[] {
       y: 20,
       w: 8,
       h: 9,
-      minW: 4,
-      minH: 5,
       props: {
         incidentId: 'INC-4821',
         widgets: [
@@ -45,16 +43,15 @@ export function defaultLayout(): GridWidget[] {
         ],
       },
     },
-    { id: 'firewall', type: 'firewall', x: 8, y: 20, w: 4, h: 5, minW: 3, minH: 3, props: { ips: ['103.77.192.18'] } },
-    { id: 'clock', type: 'clock', x: 8, y: 25, w: 4, h: 4, static: true },
-    { id: 'crash', type: 'crash', x: 0, y: 29, w: 4, h: 3, minW: 3, minH: 2 },
+    { id: 'firewall', type: 'firewall', x: 8, y: 20, w: 4, h: 4, props: { ips: ['103.77.192.18'] } },
+    { id: 'clock', type: 'clock', x: 8, y: 24, w: 4, h: 5, static: true },
+    { id: 'crash', type: 'crash', x: 0, y: 29, w: 4, h: 3 },
     // No x or y so the grid places it, sizeToContent grows it with its steps
     {
       id: 'runbook',
       type: 'runbook',
       w: 4,
       h: 3,
-      minW: 3,
       sizeToContent: true,
       props: {
         title: 'Phishing runbook',

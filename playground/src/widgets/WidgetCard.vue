@@ -1,29 +1,34 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
-import { useWidget } from 'custom-dashboard-grid'
+import { PIN_MODE_OPTIONS, useWidget } from 'custom-dashboard-grid'
 import { ChevronDown, ChevronRight, Lock, Move, Pin, X } from 'lucide-vue-next'
 import PinMenu from './PinMenu.vue'
 
 // Shared frame for every demo widget, everything it needs comes from useWidget
 
-const props = defineProps<{
-  title: string
-  icon?: Component
-  /* Pulsing status light for widgets fed by the simulator */
-  live?: boolean
-  /* Remove body padding for tables and charts that run edge to edge */
-  flush?: boolean
-}>()
+const props = withDefaults(
+  defineProps<{
+    title: string
+    icon?: Component
+    /* Pulsing status light for widgets fed by the simulator */
+    live?: boolean
+    /* Remove body padding for tables and charts that run edge to edge */
+    flush?: boolean
+    /* The body is a size container so content can scale with cq units, off for widgets that grow with their content */
+    fluid?: boolean
+  }>(),
+  { fluid: true },
+)
 
-const { widget, interaction, editable, collapsed, remove, collapse, pinMode } = useWidget()
+const { widget, interaction, editable, collapsed, selected, remove, collapse, pinMode } = useWidget()
 
-// In view mode a small icon shows how the widget is pinned
-const PIN_BADGES = {
-  pinned: { icon: Pin, label: 'Pinned: other widgets can’t move it' },
-  locked: { icon: Lock, label: 'Locked: can’t be moved or resized' },
-  'no-resize': { icon: Move, label: 'Resize locked: can be moved, not resized' },
-} as const
-const pinBadge = computed(() => (pinMode.value === 'free' ? null : PIN_BADGES[pinMode.value]))
+// In view mode a small icon shows how the widget is pinned, labelled by the library
+const PIN_ICONS = { pinned: Pin, locked: Lock, 'no-resize': Move } as const
+const pinBadge = computed(() => {
+  if (pinMode.value === 'free') return null
+  const option = PIN_MODE_OPTIONS.find((o) => o.mode === pinMode.value)!
+  return { icon: PIN_ICONS[pinMode.value], label: `${option.label}: ${option.description}` }
+})
 
 // Live grid position or size while dragging or resizing
 const readout = computed(() => {
@@ -41,6 +46,7 @@ const titleText = computed(() => props.title)
       'card--active': interaction,
       'card--editing': editable,
       'card--pinned': pinMode !== 'free',
+      'card--selected': selected,
     }"
   >
     <header class="card__header">
@@ -65,7 +71,7 @@ const titleText = computed(() => props.title)
         </component>
       </div>
     </header>
-    <div v-show="!collapsed" class="card__body" :class="{ 'card__body--flush': flush }">
+    <div v-show="!collapsed" class="card__body" :class="{ 'card__body--flush': flush, 'card__body--fluid': fluid }">
       <slot />
     </div>
     <span class="card__corner" aria-hidden="true" />
@@ -107,6 +113,34 @@ const titleText = computed(() => props.title)
   --edge: var(--border-strong);
 }
 
+/* Hover lights the cut corner and brings the header controls forward */
+.card__corner {
+  transition: filter 0.25s;
+}
+
+.card:hover .card__corner {
+  --edge: var(--accent);
+  filter: drop-shadow(0 0 3px var(--accent-glow));
+}
+
+.card__icon {
+  transition: transform 0.3s cubic-bezier(0.3, 1.4, 0.5, 1);
+}
+
+.card:hover .card__icon {
+  transform: rotate(-8deg) scale(1.1);
+}
+
+.card__actions {
+  opacity: 0.6;
+  transition: opacity 0.2s;
+}
+
+.card:hover .card__actions,
+.card:focus-within .card__actions {
+  opacity: 1;
+}
+
 .card--static {
   background: linear-gradient(var(--surface), var(--surface-2));
 }
@@ -136,6 +170,15 @@ const titleText = computed(() => props.title)
 
 .card--editing.card--pinned {
   --edge: rgb(45 212 191 / 0.35);
+}
+
+/* Selected cards light their edge and tint the header, the chamfer keeps its shape */
+.card--selected {
+  --edge: var(--accent);
+}
+
+.card--selected .card__header {
+  background: var(--accent-soft);
 }
 
 .card--active {
@@ -238,5 +281,10 @@ const titleText = computed(() => props.title)
 
 .card__body--flush {
   padding: 0;
+}
+
+.card__body--fluid {
+  container-type: size;
+  overflow: hidden;
 }
 </style>

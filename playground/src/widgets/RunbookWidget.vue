@@ -5,7 +5,7 @@ import { ListChecks } from 'lucide-vue-next'
 import WidgetCard from './WidgetCard.vue'
 
 // Runbook checklist using sizeToContent, so it grows and shrinks with its steps
-// Steps are saved into the dashboard with update
+// Steps are saved into the dashboard with updateProps
 
 interface Step {
   text: string
@@ -16,12 +16,12 @@ const props = withDefaults(defineProps<{ title?: string; steps?: Step[] }>(), {
   title: 'Runbook',
   steps: () => [],
 })
-const { update } = useWidget()
+const { updateProps } = useWidget()
 
 const draft = ref('')
 
 function save(steps: Step[]) {
-  update({ props: { title: props.title, steps } })
+  updateProps({ steps })
 }
 
 function toggle(index: number) {
@@ -41,9 +41,12 @@ function remove(index: number) {
 </script>
 
 <template>
-  <WidgetCard :title="title" :icon="ListChecks">
+  <WidgetCard :title="title" :icon="ListChecks" :fluid="false">
     <div class="runbook">
-      <p class="runbook__progress mono">{{ steps.filter((s) => s.done).length }}/{{ steps.length }} done · grows to fit</p>
+      <div class="runbook__progress">
+        <span>{{ steps.filter((s) => s.done).length }} of {{ steps.length }} done</span>
+        <span class="w-track"><span class="w-bar" :style="{ width: `${steps.length ? (steps.filter((s) => s.done).length / steps.length) * 100 : 0}%` }" /></span>
+      </div>
       <ol>
         <li v-for="(step, i) in steps" :key="i" :class="{ 'is-done': step.done }">
           <label>
@@ -54,8 +57,8 @@ function remove(index: number) {
         </li>
       </ol>
       <form class="runbook__add" @submit.prevent="add">
-        <input v-model="draft" placeholder="Add a step..." aria-label="New runbook step" />
-        <button type="submit" :disabled="!draft.trim()">Add</button>
+        <input v-model="draft" class="w-input" placeholder="Add a step" aria-label="New runbook step" />
+        <button class="w-btn" type="submit" :disabled="!draft.trim()">Add</button>
       </form>
     </div>
   </WidgetCard>
@@ -69,9 +72,15 @@ function remove(index: number) {
 }
 
 .runbook__progress {
-  margin: 0;
-  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
   color: var(--text-faint);
+}
+
+.runbook__progress .w-bar {
+  display: block;
 }
 
 .runbook ol {
@@ -102,8 +111,52 @@ function remove(index: number) {
   text-decoration: line-through;
 }
 
+/* Square check drawn in cyan, with a glow once ticked */
 .runbook input[type='checkbox'] {
-  accent-color: var(--accent);
+  appearance: none;
+  flex-shrink: 0;
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  margin: 0;
+  border-radius: 3px;
+  border: 1px solid var(--border-strong);
+  background: var(--bg-deep);
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.runbook input[type='checkbox']::after {
+  content: '';
+  width: 4px;
+  height: 8px;
+  margin-top: -2px;
+  border: solid var(--bg);
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg) scale(0);
+  transition: transform 0.15s;
+}
+
+.runbook input[type='checkbox']:checked {
+  background: var(--cyan);
+  border-color: var(--cyan);
+  box-shadow: 0 0 8px var(--cyan-glow);
+}
+
+.runbook input[type='checkbox']:checked::after {
+  transform: rotate(45deg) scale(1);
+}
+
+.runbook li {
+  transition: background 0.15s;
+}
+
+.runbook li:hover {
+  background: rgb(255 255 255 / 0.02);
 }
 
 .runbook__remove {
@@ -120,11 +173,5 @@ function remove(index: number) {
 
 .runbook__add input {
   flex: 1;
-  min-width: 0;
-  padding: 5px 8px;
-  border-radius: var(--radius-sm);
-  border: 1px solid var(--border-strong);
-  background: var(--bg);
-  font-size: 12px;
 }
 </style>

@@ -18,10 +18,16 @@ const ctx = useGridContext()
 const el = ref<HTMLElement>()
 
 const id = computed(() => props.widget.id)
-const interaction = computed(() => (ctx.active.value?.id === id.value ? ctx.active.value.kind : null))
+const groupBox = computed(() => ctx.groupPixels.value?.get(id.value) ?? null)
+const interaction = computed<InteractionKind | null>(() =>
+  ctx.active.value?.id === id.value ? ctx.active.value.kind : groupBox.value ? 'drag' : null,
+)
 const collapsed = computed(() => !!props.widget.collapsed)
+const selected = computed(() => ctx.selected.value.has(id.value))
+const enterDelay = computed(() => ctx.entering.value.get(id.value))
 
 const box = computed(() => {
+  if (groupBox.value) return groupBox.value
   if (interaction.value && ctx.livePixels.value) return ctx.livePixels.value
   return toPixels(props.widget, ctx.metrics.value)
 })
@@ -85,8 +91,10 @@ provide(WIDGET_CONTEXT, {
   interaction,
   editable: ctx.editable,
   collapsed,
+  selected,
   remove: () => ctx.remove(id.value),
   update: (patch) => ctx.update(id.value, patch),
+  updateProps: (patch) => ctx.updateProps(id.value, patch),
   collapse: (value) => ctx.setCollapsed(id.value, value),
   pinMode: computed(() => pinModeOf(props.widget)),
   setPinMode: (mode) => ctx.setPinMode(id.value, mode),
@@ -95,13 +103,30 @@ provide(WIDGET_CONTEXT, {
 function onPointerDown(event: PointerEvent) {
   // Already taken by a grid nested inside this widget
   if (handledEvents.has(event)) return
-  if (event.button !== 0 || !canDrag.value || !el.value) return
+  if (event.button !== 0 || !el.value || locked.value) return
   const target = event.target as Element
   // Let interactive content opt out of dragging
   if (target.closest('[data-no-drag], input, textarea, select, button, a, [contenteditable]:not([contenteditable="false"])')) return
   if (ctx.dragCancel.value && safeClosest(target, ctx.dragCancel.value)) return
+  if (ctx.keyboard.value) el.value.focus({ preventScroll: true })
+  if (ctx.selectable.value) {
+    const toggle = event.ctrlKey || event.metaKey || event.shiftKey
+    ctx.pressSelect(id.value, toggle)
+    handledEvents.add(event)
+    // A modifier press only changes the selection, it never starts a drag
+    if (toggle) {
+      event.preventDefault()
+      return
+    }
+  }
+  if (!canDrag.value) return
   if (ctx.dragHandle.value && !safeClosest(target, ctx.dragHandle.value)) return
   if (ctx.begin('drag', id.value, event, el.value)) handledEvents.add(event)
+}
+
+function onKeyDown(event: KeyboardEvent) {
+  // Only keys pressed on the widget itself, never ones typed into its content
+  if (event.target === el.value) ctx.onKey(id.value, event)
 }
 
 /* closest that treats an invalid selector as no match */
@@ -132,7 +157,8 @@ function onHandleDown(event: PointerEvent, handle: ResizeHandle) {
       'dg-item--collapsed': collapsed,
       'dg-item--transferring': ctx.transferring.value === id,
       'dg-item--removing': ctx.removing.value === id,
-      'dg-item--entering': ctx.entering.value.has(id),
+      'dg-item--entering': enterDelay !== undefined,
+      'dg-item--selected': selected,
       'dg-item--fit': fits,
       'dg-item--pending': !visible,
     }"
@@ -140,8 +166,13 @@ function onHandleDown(event: PointerEvent, handle: ResizeHandle) {
       width: `${box.w}px`,
       height: `${box.h}px`,
       transform: `translate(${box.x}px, ${box.y}px)`,
+      '--dg-enter-delay': enterDelay ? `${enterDelay}ms` : undefined,
     }"
+    :tabindex="ctx.keyboard.value ? 0 : undefined"
+    :aria-roledescription="ctx.keyboard.value ? 'widget' : undefined"
+    :aria-label="ctx.keyboard.value ? ctx.labelFor(widget) : undefined"
     @pointerdown="onPointerDown"
+    @keydown="onKeyDown"
   >
     <WidgetBoundary v-if="visible" @error="(error: unknown) => ctx.reportError(widget, error)">
       <slot :interaction="interaction" />
@@ -180,15 +211,17 @@ function onHandleDown(event: PointerEvent, handle: ResizeHandle) {
   height: auto;
 }
 
-.dg-item--entering > .dg-content {
-  animation: dg-enter var(--dg-duration, 200ms) var(--dg-easing, ease) both;
+/* Keyboard focus and selection, both themeable */
+.dg-item:focus {
+  outline: none;
 }
-
-@keyframes dg-enter {
-  from {
-    opacity: 0;
-    transform: scale(0.94);
-  }
+.dg-item:focus-visible {
+  outline: 2px solid var(--dg-focus-color, #3b82f6);
+  outline-offset: 2px;
+}
+.dg-item--selected {
+  outline: 2px solid var(--dg-selection-color, #3b82f6);
+  outline-offset: 2px;
 }
 
 .dg-item--removing {

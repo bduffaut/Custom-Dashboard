@@ -1,11 +1,14 @@
 import type { ObjectDirective } from 'vue'
 import type { Point } from './dnd'
+import { setOverTrash } from './dragState'
 
 // Trash zones, dropping a dragged widget on one removes it
-// The element gets dg-trash, plus dg-trash--active while a widget is over it
+// The element gets dg-trash, dg-trash--armed while a widget it could take is dragged,
+// and dg-trash--active while that widget is held over it
 
 const zones = new Map<HTMLElement, { group: string }>()
 let active: HTMLElement | null = null
+let armedGroup: string | null = null
 
 /* Trash zone under the pointer for a grid group, if any */
 export function trashAt(pointer: Point, group: string): HTMLElement | null {
@@ -24,6 +27,13 @@ export function setActiveTrash(el: HTMLElement | null): void {
   active?.classList.remove('dg-trash--active')
   active = el
   active?.classList.add('dg-trash--active')
+  setOverTrash(el !== null)
+}
+
+/* Mark every zone of a group as ready while one of its widgets is dragged, null clears them */
+export function armTrash(group: string | null): void {
+  armedGroup = group
+  for (const [el, zone] of zones) el.classList.toggle('dg-trash--armed', zone.group === group)
 }
 
 /*
@@ -32,16 +42,20 @@ export function setActiveTrash(el: HTMLElement | null): void {
  */
 export const vWidgetTrash: ObjectDirective<HTMLElement, unknown, string> = {
   mounted(el, binding) {
-    zones.set(el, { group: binding.arg || 'default' })
+    const group = binding.arg || 'default'
+    zones.set(el, { group })
     el.classList.add('dg-trash')
+    el.classList.toggle('dg-trash--armed', group === armedGroup)
   },
   updated(el, binding) {
     const zone = zones.get(el)
-    if (zone) zone.group = binding.arg || 'default'
+    if (!zone) return
+    zone.group = binding.arg || 'default'
+    el.classList.toggle('dg-trash--armed', zone.group === armedGroup)
   },
   beforeUnmount(el) {
     zones.delete(el)
     if (active === el) setActiveTrash(null)
-    el.classList.remove('dg-trash', 'dg-trash--active')
+    el.classList.remove('dg-trash', 'dg-trash--active', 'dg-trash--armed')
   },
 }

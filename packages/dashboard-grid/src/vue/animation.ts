@@ -3,13 +3,30 @@
 
 export type AnimationPreset = 'none' | 'snappy' | 'smooth' | 'gentle' | 'bouncy'
 
+/*
+ * How a widget arrives: fade in, scale up, rise from below, drop from above, zoom from small, flip down,
+ * or zip, which starts slow below the screen then accelerates into place, one widget after another
+ */
+export type EnterEffect = 'fade' | 'scale' | 'rise' | 'drop' | 'zoom' | 'flip' | 'zip'
+
+export const ENTER_EFFECTS: readonly EnterEffect[] = ['fade', 'scale', 'rise', 'drop', 'zoom', 'flip', 'zip']
+
+/* How long one widget's arrival takes, zip travels much further so it gets more time */
+export function enterDuration(animation: ResolvedAnimation): number {
+  return animation.enter === 'zip' ? Math.round(animation.duration * 3 + 300) : animation.duration
+}
+
 export interface AnimationOptions {
   /* Duration in ms for moves, resizes, enters and leaves */
   duration?: number
   /* Any CSS easing, like ease-out or cubic-bezier(.2, .8, .2, 1) */
   easing?: string
-  /* Fade and scale new widgets in, default true */
-  enter?: boolean
+  /* Animate new widgets in, true uses scale, or pick an effect */
+  enter?: boolean | EnterEffect
+  /* Play the enter effect for the widgets already there when the grid first loads */
+  appear?: boolean
+  /* Delay in ms between widgets arriving together, in reading order, for a cascade */
+  stagger?: number
   /* Fade and scale removed widgets out, default true */
   leave?: boolean
   /* Turn animation off for users who prefer reduced motion, default true */
@@ -22,7 +39,9 @@ export type AnimationSetting = boolean | AnimationPreset | (AnimationOptions & {
 export interface ResolvedAnimation {
   duration: number
   easing: string
-  enter: boolean
+  enter: EnterEffect | false
+  appear: boolean
+  stagger: number
   leave: boolean
 }
 
@@ -36,7 +55,7 @@ export const ANIMATION_PRESETS: Record<AnimationPreset, { duration: number; easi
 
 /* Resolve to concrete values, unknown input falls back to smooth */
 export function resolveAnimation(setting: AnimationSetting | undefined, reducedMotion: boolean): ResolvedAnimation {
-  const off: ResolvedAnimation = { duration: 0, easing: 'linear', enter: false, leave: false }
+  const off: ResolvedAnimation = { duration: 0, easing: 'linear', enter: false, appear: false, stagger: 0, leave: false }
   if (setting === false || setting === 'none') return off
 
   let preset = ANIMATION_PRESETS.smooth
@@ -50,10 +69,14 @@ export function resolveAnimation(setting: AnimationSetting | undefined, reducedM
   if (reducedMotion && options.respectReducedMotion !== false) return off
   const duration = typeof options.duration === 'number' && Number.isFinite(options.duration) ? Math.max(0, options.duration) : preset.duration
   if (duration === 0) return off
+  const enter = options.enter === false ? false : typeof options.enter === 'string' && ENTER_EFFECTS.includes(options.enter) ? options.enter : 'scale'
+  const stagger = typeof options.stagger === 'number' && Number.isFinite(options.stagger) ? Math.min(Math.max(0, options.stagger), 500) : 0
   return {
     duration,
     easing: typeof options.easing === 'string' && options.easing.trim() ? options.easing : preset.easing,
-    enter: options.enter !== false,
+    enter,
+    appear: enter !== false && options.appear === true,
+    stagger,
     leave: options.leave !== false,
   }
 }

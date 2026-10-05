@@ -64,7 +64,7 @@ const cell = computed(() => {
       </div>
       </div>
       <div class="hosts__detail mono">
-        <template v-if="hovered">{{ hovered.name }} · {{ hovered.ip }} · {{ hovered.status }}</template>
+        <template v-if="hovered">{{ hovered.name }}, {{ hovered.ip }}, {{ hovered.status }}</template>
         <template v-else>Hover a square for host details</template>
       </div>
     </div>
@@ -127,13 +127,18 @@ const cell = computed(() => {
 }
 
 .hosts__cell:hover {
-  transform: scale(1.15);
-  box-shadow: 0 0 0 2px var(--surface), 0 0 0 3px var(--text);
+  transform: scale(1.2);
+  box-shadow:
+    0 0 0 2px var(--surface),
+    0 0 0 3px var(--cyan),
+    0 0 12px var(--cyan-glow);
 }
 
 .hosts__cell.is-compromised {
+  box-shadow: 0 0 8px rgb(208 59 59 / 0.7);
   animation: alarm 1.2s ease-in-out infinite;
 }
+
 
 @keyframes alarm {
   50% {
