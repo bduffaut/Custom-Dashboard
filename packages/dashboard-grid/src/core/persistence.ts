@@ -1,3 +1,4 @@
+import { LAYOUT_KEYS } from './layout'
 import { sanitizeLayout } from './sanitize'
 import type { LayoutItem } from './types'
 import { warn } from './warn'
@@ -29,6 +30,34 @@ export function toSavedLayout<T extends LayoutItem>(widgets: readonly T[], versi
   return { version, savedAt: new Date().toISOString(), widgets: JSON.parse(JSON.stringify(widgets)) as T[] }
 }
 
+/*
+ * Merge a saved layout with the widgets that should exist now, like one per project from your data
+ * Widgets in both keep their saved position, size, collapsed and pin state with everything else from current,
+ * widgets no longer in current are dropped, and new ones lose x and y so the grid places them in free spots
+ */
+export function reconcileLayout<T extends LayoutItem>(saved: readonly T[], current: readonly T[]): T[] {
+  const byId = new Map(current.map((item) => [item.id, item]))
+  const kept = new Set<string>()
+  const out: T[] = []
+  for (const old of saved) {
+    const now = byId.get(old.id)
+    if (!now || kept.has(old.id)) continue
+    kept.add(old.id)
+    const merged = { ...now } as Record<string, unknown>
+    for (const key of LAYOUT_KEYS) {
+      if (old[key] === undefined) delete merged[key]
+      else merged[key] = old[key]
+    }
+    out.push(merged as T)
+  }
+  for (const item of current) {
+    if (kept.has(item.id)) continue
+    const { x: _x, y: _y, ...rest } = item
+    out.push(rest as unknown as T)
+  }
+  return out
+}
+
 /* Layout as a JSON string, ready to store or send */
 export function serializeLayout<T extends LayoutItem>(widgets: readonly T[], version = 1): string {
   return JSON.stringify(toSavedLayout(widgets, version))
@@ -48,6 +77,11 @@ export function parseLayout<T extends LayoutItem>(input: unknown, options: Parse
     if (typeof data === 'string') {
       if (data.trim() === '') return fallback()
       data = JSON.parse(data)
+      // serializeLayout already returns a string, so wrapping it in JSON.stringify encodes it twice
+      if (typeof data === 'string') {
+        warn('The saved layout was JSON encoded twice; serializeLayout already returns a string, so store it as is.')
+        data = JSON.parse(data)
+      }
     }
 
     let widgets: unknown

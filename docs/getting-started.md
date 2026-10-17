@@ -50,7 +50,7 @@ Saving a dashboard is just saving that array.
 | `static` | Never moves or resizes, others flow around it |
 | `locked` | Other widgets never push it, but the user can still move and resize it |
 | `noMove`, `noResize` | Lock just one of the two |
-| `sizeToContent` | `true` makes the height follow the content, a number caps it at that many rows |
+| `sizeToContent` | `true` makes the height follow the content, a number caps it at that many rows. Such widgets only resize sideways |
 | `resizeHandles` | Resize handles for this widget only, overriding the grid setting |
 | `collapsed` | Collapsed to its header, `h` keeps the full height for expanding |
 | `breakpoints` | Positions arranged at smaller breakpoints, written by the grid |

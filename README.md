@@ -37,7 +37,8 @@ Open http://localhost:5173 and click **Edit layout** to start moving things arou
 - Animation presets and arrival effects (fade, scale, rise, drop, zoom, flip, zip up from below) with a cascade on load, all respecting reduced motion
 - Auto-scroll while dragging near an edge
 - Crash-safe widgets and self-repairing layout data
-- Vue is the only dependency, about 24 kB gzipped
+- Server rendering with Nuxt or Vite SSR, widgets are in the first HTML and hydrate cleanly
+- Vue is the only dependency, about 26 kB gzipped
 
 ## Using it
 

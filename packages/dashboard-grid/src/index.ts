@@ -13,19 +13,19 @@ export { useWidget, type WidgetContext } from './vue/context'
 export { vDraggableWidget, type DraggableWidgetValue } from './vue/directive'
 export { vWidgetTrash } from './vue/trash'
 export { ANIMATION_PRESETS, ENTER_EFFECTS, type AnimationOptions, type AnimationPreset, type AnimationSetting, type EnterEffect } from './vue/animation'
-export { useLayoutStorage, useSavedLayouts, type NamedLayout, type StorageOptions } from './vue/storage'
+export { useLayoutStorage, useSavedLayouts, type LayoutStorageOptions, type NamedLayout, type StorageOptions } from './vue/storage'
 export { createWidgetId } from './vue/id'
 export { useDragState, type DragKind, type DragState } from './vue/dragState'
 export { useWidgetCatalog, type CatalogEntry, type CatalogGroup, type CatalogOptions, type WidgetCatalog } from './vue/catalog'
 
 // Plain functions, usable without Vue
-export { parseLayout, serializeLayout, toSavedLayout, type ParseOptions, type SavedLayout } from './core'
+export { parseLayout, reconcileLayout, serializeLayout, toSavedLayout, type ParseOptions, type SavedLayout } from './core'
 export { DEFAULT_BREAKPOINTS, type BreakpointConfig, type BreakpointLayout, type ArrangeOptions } from './core'
 export { PIN_MODE_OPTIONS, PIN_MODES, pinModeOf, type PinMode, type PinModeOption } from './core'
 
 // Types
 export { defineWidgets } from './vue/types'
-export type { AddWidgetOptions, DropEvent, DropSource, GridWidget, InteractionKind, NewGridWidget, WidgetInput, WidgetSource } from './vue/types'
+export type { AddWidgetOptions, ChangeInfo, ChangeSource, DropEvent, DropSource, GridWidget, InteractionKind, NewGridWidget, WidgetInput, WidgetSource } from './vue/types'
 export type { CompactMode, ItemId, LayoutItem, Rect, ResizeHandle, ResizeHandles, SizeLimits } from './core'
 
 /* Methods on a DashboardGrid template ref */

@@ -155,6 +155,54 @@ describe('size to content', () => {
     expect(model.value[0]!.h).toBe(4)
   })
 
+  it('fits again when the layout is replaced from outside, though the content never changed size', async () => {
+    contentHeight(200)
+    const Tall = defineComponent({ setup: () => () => h('div', 'tall content') })
+    const start = () => [{ id: 'a', type: 't', x: 0, y: 0, w: 2, h: 1 }]
+    const { model } = mountGrid(start(), { components: { t: Tall }, sizeToContent: true })
+    await frame()
+    expect(model.value[0]!.h).toBe(3)
+    // Like loading a saved layout after mount
+    model.value = start()
+    await frame()
+    expect(model.value[0]!.h).toBe(3)
+  })
+
+  it('draws a fitted widget exactly as tall as its content, unless a cap overrides the content', async () => {
+    contentHeight(200)
+    const Tall = defineComponent({ setup: () => () => h('div', 'tall') })
+    const { wrapper, model } = mountGrid(
+      [
+        { id: 'fit', type: 't', x: 0, y: 0, w: 2, h: 1, sizeToContent: true },
+        { id: 'capped', type: 't', x: 2, y: 0, w: 2, h: 1, sizeToContent: 2 },
+      ],
+      { components: { t: Tall } },
+    )
+    await frame()
+    // 3 rows of 60px with 12px gaps reserve 204px, the box is drawn at the content's 200px
+    expect(model.value.map((w) => w.h)).toEqual([3, 2])
+    const height = (id: string) => (wrapper.find(`[data-widget-id="${id}"]`).element as HTMLElement).style.height
+    expect(height('fit')).toBe('200px')
+    // Capped at 2 rows, the content is taller, so the box keeps its full 132px
+    expect(height('capped')).toBe('132px')
+  })
+
+  it('only offers sideways resize handles on a widget sized to its content', async () => {
+    contentHeight(200)
+    const Tall = defineComponent({ setup: () => () => h('div', 'tall') })
+    const { wrapper } = mountGrid(
+      [
+        { id: 'fit', type: 't', x: 0, y: 0, w: 2, h: 1, sizeToContent: true },
+        { id: 'free', type: 't', x: 2, y: 0, w: 2, h: 1 },
+      ],
+      { components: { t: Tall }, resizeHandles: 'all' },
+    )
+    await nextTick()
+    const handles = (id: string) => wrapper.findAll(`[data-widget-id="${id}"] > .dg-resize-handle`).map((el) => el.classes().find((c) => c.startsWith('dg-resize-handle--'))!.slice(18))
+    expect(handles('fit').sort()).toEqual(['e', 'w'])
+    expect(handles('free')).toHaveLength(8)
+  })
+
   it('fits any widget on demand with resizeToContent', async () => {
     contentHeight(130)
     const Box = defineComponent({ setup: () => () => h('div', 'box') })
@@ -345,6 +393,35 @@ describe('events and helpers', () => {
     window.dispatchEvent(pointer('pointerup', 12, 10 + 72 * 3))
     expect(inner().emitted('drag')).toHaveLength(1)
     expect(inner().emitted('drag')?.[0]?.[1]).toEqual({ x: 0, y: 3 })
+  })
+
+  it('tells user changes from automatic ones, and drag-end fires after v-model with the final spot', async () => {
+    const order: string[] = []
+    let atDragEnd: GridWidget[] = []
+    const { wrapper, model, inner } = mountGrid([{ id: 'a', x: 0, y: 0, w: 2, h: 2 }], {
+      compact: 'none',
+      onChange: () => order.push('change'),
+      onDragEnd: () => {
+        order.push('dragEnd')
+        atDragEnd = model.value
+      },
+    })
+    await nextTick()
+    wrapper.find('[data-widget-id="a"]').element.dispatchEvent(pointer('pointerdown', 10, 10))
+    window.dispatchEvent(pointer('pointermove', 10, 10 + 72 * 3))
+    window.dispatchEvent(pointer('pointerup', 10, 10 + 72 * 3))
+    expect(order).toEqual(['change', 'dragEnd'])
+    expect(atDragEnd[0]).toMatchObject({ y: 3 })
+    expect(inner().emitted('dragEnd')?.[0]?.[0]).toMatchObject({ id: 'a', y: 3 })
+    expect(inner().emitted('change')?.at(-1)?.[1]).toEqual({ source: 'user' })
+  })
+
+  it('marks sizing to content as an automatic change', async () => {
+    vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockReturnValue({ height: 200, width: 100, top: 0, left: 0, right: 100, bottom: 200, x: 0, y: 0, toJSON: () => ({}) } as DOMRect)
+    const Tall = defineComponent({ setup: () => () => h('div', 'tall') })
+    const { inner } = mountGrid([{ id: 'a', type: 't', x: 0, y: 0, w: 2, h: 1, sizeToContent: true }], { components: { t: Tall } })
+    await frame()
+    expect(inner().emitted('change')?.at(-1)).toEqual([[expect.objectContaining({ id: 'a', h: 3 })], { source: 'auto' }])
   })
 
   it('answers willItFit, isAreaEmpty, cellFromPoint, columns, rows and removeAll', async () => {

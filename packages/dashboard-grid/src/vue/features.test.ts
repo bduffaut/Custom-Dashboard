@@ -3,6 +3,7 @@ import { defineComponent, effectScope, h, nextTick, ref, withDirectives, type Co
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   DashboardGrid,
+  reconcileLayout,
   useLayoutStorage,
   useSavedLayouts,
   useWidget,
@@ -470,6 +471,41 @@ describe('storage helpers', () => {
     const { widgets, save } = effectScope().run(() => useLayoutStorage('k', defaults, { storage: broken }))!
     expect(widgets.value).toEqual(defaults())
     expect(() => save()).not.toThrow()
+  })
+
+  it('can load after mount for server rendering, without an undo step, and reconcile with current widgets', async () => {
+    const saved = [
+      { id: 'd', x: 4, y: 0, w: 3, h: 2, props: { title: 'stale' } },
+      { id: 'gone', x: 0, y: 0, w: 2, h: 2 },
+    ]
+    const storage = memoryStorage({ k: JSON.stringify({ version: 1, widgets: saved }) })
+    const current = (): GridWidget[] => [
+      { id: 'd', x: 0, y: 0, w: 1, h: 1, props: { title: 'fresh' } },
+      { id: 'new', x: 0, y: 0, w: 2, h: 1 },
+    ]
+    const grid = ref<DashboardGridApi>()
+    let firstRender: string[] = []
+    let model = ref<GridWidget[]>([])
+    const wrapper = mount(
+      defineComponent({
+        setup() {
+          const { widgets } = useLayoutStorage('k', current, { storage, loadOnMount: true, reconcile: reconcileLayout })
+          firstRender = widgets.value.map((w) => `${w.id}@${w.x}`)
+          model = widgets
+          return () => h(DashboardGrid, { ref: grid, modelValue: widgets.value, 'onUpdate:modelValue': (v: GridWidget[]) => (widgets.value = v) })
+        },
+      }),
+      { attachTo: document.body },
+    )
+    // The first render matches what a server without storage renders
+    expect(firstRender).toEqual(['d@0', 'new@0'])
+    await nextTick()
+    await nextTick()
+    const ids = wrapper.findAll('.dg-item').map((el) => el.attributes('data-widget-id'))
+    expect(ids.sort()).toEqual(['d', 'new'])
+    expect(model.value.find((w) => w.id === 'd')).toMatchObject({ x: 4, w: 3, h: 2, props: { title: 'fresh' } })
+    expect(grid.value!.canUndo).toBe(false)
+    wrapper.unmount()
   })
 
   it('saves, lists, loads, renames and removes named layouts', () => {

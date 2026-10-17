@@ -4,7 +4,7 @@ import { hasCollision } from './collision'
 import { columnsForWidth, gridHeight, resizeBox, resolveHandles, rowsForHeight, toGridRect, toPixels } from './geometry'
 import { restoreLayout } from './history'
 import { bottom } from './layout'
-import { parseLayout, serializeLayout } from './persistence'
+import { parseLayout, reconcileLayout, serializeLayout } from './persistence'
 import { pinModeOf, withPinMode } from './pin'
 import { clearBreakpoint, deriveLayout, normalizeBreakpoints, pickBreakpoint, writeLayout } from './responsive'
 import { sanitizeLayout } from './sanitize'
@@ -217,6 +217,27 @@ describe('saving and loading', () => {
     const out = parseLayout(JSON.stringify(widgets), { version: 2, migrate })
     expect(migrate).toHaveBeenCalledWith(widgets, 0)
     expect(out[0]).toMatchObject({ migrated: true })
+  })
+
+  it('reads a layout that was JSON encoded twice', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    expect(parseLayout(JSON.stringify(serializeLayout(widgets)))).toEqual(widgets)
+  })
+
+  it('reconciles a saved layout with the widgets that exist now', () => {
+    type Widget = LayoutItem & { props?: { title: string } }
+    const saved: Widget[] = [
+      { id: 'keep', x: 6, y: 2, w: 3, h: 4, locked: true, props: { title: 'old' } },
+      { id: 'gone', x: 0, y: 0, w: 2, h: 2 },
+    ]
+    const current: Widget[] = [
+      { id: 'new', x: 0, y: 0, w: 2, h: 2, props: { title: 'added' } },
+      { id: 'keep', x: 0, y: 0, w: 1, h: 1, props: { title: 'fresh' } },
+    ]
+    expect(reconcileLayout(saved, current)).toEqual([
+      { id: 'keep', x: 6, y: 2, w: 3, h: 4, locked: true, props: { title: 'fresh' } },
+      { id: 'new', w: 2, h: 2, props: { title: 'added' } },
+    ])
   })
 
   it('falls back on garbage instead of throwing', () => {

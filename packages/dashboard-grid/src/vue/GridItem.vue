@@ -27,9 +27,9 @@ const selected = computed(() => ctx.selected.value.has(id.value))
 const enterDelay = computed(() => ctx.entering.value.get(id.value))
 
 const box = computed(() => {
-  if (groupBox.value) return groupBox.value
-  if (interaction.value && ctx.livePixels.value) return ctx.livePixels.value
-  return toPixels(props.widget, ctx.metrics.value)
+  if (groupBox.value) return ctx.drawnBox(props.widget, groupBox.value)
+  if (interaction.value && ctx.livePixels.value) return ctx.drawnBox(props.widget, ctx.livePixels.value)
+  return ctx.drawnBox(props.widget, toPixels(props.widget, ctx.metrics.value))
 })
 
 const locked = computed(() => !ctx.editable.value || !!props.widget.static)
@@ -38,8 +38,8 @@ const canDrag = computed(() => !locked.value && ctx.draggable.value && !props.wi
 const handles = computed<ResizeHandle[]>(() => {
   if (locked.value || !ctx.resizable.value || props.widget.noResize) return []
   const list = resolveHandles(props.widget.resizeHandles, ctx.resizeHandles.value)
-  if (!collapsed.value) return list
-  // A collapsed widget only resizes sideways
+  if (!collapsed.value && !fits.value) return list
+  // A collapsed widget only resizes sideways, and so does one sized to its content since its height is not up to the user
   return [...new Set(list.flatMap((h) => (h.includes('e') ? ['e' as const] : h.includes('w') ? ['w' as const] : [])))]
 })
 
@@ -67,7 +67,10 @@ function startMeasuring() {
   stopMeasuring()
   const content = el.value?.querySelector(':scope > .dg-content')
   if (!content || typeof ResizeObserver === 'undefined') return
-  contentObserver = new ResizeObserver(() => ctx.reportContentHeight(id.value, content.getBoundingClientRect().height))
+  // borderBoxSize is the layout size, so an enter animation's scale never shrinks the measurement
+  contentObserver = new ResizeObserver(([entry]) =>
+    ctx.reportContentHeight(id.value, entry?.borderBoxSize?.[0]?.blockSize ?? content.getBoundingClientRect().height),
+  )
   contentObserver.observe(content)
 }
 

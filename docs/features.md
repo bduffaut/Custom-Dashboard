@@ -225,9 +225,18 @@ While a widget, a selected group or a widget coming in from outside moves, lines
 ```
 
 - The grid measures the content and sets `h` to the rows it needs, pushing neighbours as usual
-- It is automatic, so it is not an undo step, and it never happens mid-drag
+- It keeps fitting after outside changes too, like loading a saved layout, undo or a reset
+- It is automatic, so it is not an undo step, never happens mid-drag, and its `change` event has `source: 'auto'`
+- Only the sideways resize handles show, since the content decides the height
 - Give the widget's root element a natural height, not `height: 100%`
 - `resizeToContent(id?)` fits any widget once, on demand
+
+Heights round up to whole rows, but the widget is drawn exactly as tall as its content, so its outline, handles and drag placeholder match what you see. The rest of the last row stays empty, so with tall rows the gap under a fitted widget can be a little bigger than the others. For an even gap under every widget, use short rows with no row gap and put the spacing inside the widgets:
+
+```vue
+<DashboardGrid size-to-content :row-height="8" :gap="[20, 0]" />
+<!-- each widget root: padding-bottom: 20px -->
+```
 
 ## Animation
 
@@ -266,6 +275,19 @@ const { widgets, reset, clear } = useLayoutStorage('my-dashboard', defaultWidget
 
 Saving is debounced and pending changes are written before the page closes. Missing, blocked or full storage is handled, and corrupt data falls back to your defaults.
 
+With server rendering (Nuxt, Vite SSR), add `loadOnMount: true`. The server never sees localStorage, so the first render uses your defaults on both sides and the saved layout loads right after mount, without an undo step.
+
+When widgets come from your data, like one per project, a saved layout can go stale. `reconcileLayout` keeps saved positions and sizes, takes everything else from your current widgets, drops widgets that are gone and places new ones in free spots:
+
+```ts
+import { reconcileLayout, useLayoutStorage } from 'custom-dashboard-grid'
+
+const { widgets } = useLayoutStorage('my-dashboard', () => projects.map(toWidget), {
+  loadOnMount: true,
+  reconcile: reconcileLayout, // or your own (saved, defaults) => widgets
+})
+```
+
 Named presets:
 
 ```ts
@@ -282,7 +304,7 @@ Your own backend:
 ```ts
 import { parseLayout, serializeLayout } from 'custom-dashboard-grid'
 
-await api.save(serializeLayout(widgets.value, 2)) // { version: 2, savedAt, widgets }
+await api.save(serializeLayout(widgets.value, 2)) // a JSON string, store it as is, no JSON.stringify
 
 widgets.value = parseLayout(await api.load(), {
   version: 2,
@@ -291,7 +313,7 @@ widgets.value = parseLayout(await api.load(), {
 })
 ```
 
-`parseLayout` never throws. It accepts a JSON string, a saved object or a bare array, and cleans every widget.
+`parseLayout` never throws. It accepts a JSON string, a saved object or a bare array, and cleans every widget. A string that was encoded twice is read too, with a warning. Use `toSavedLayout` instead of `serializeLayout` if you want the `{ version, savedAt, widgets }` object.
 
 ## Custom rendering
 

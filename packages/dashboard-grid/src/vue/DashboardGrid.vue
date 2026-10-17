@@ -1,5 +1,5 @@
 <script setup lang="ts" generic="T extends GridWidget">
-import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, shallowRef, watch, type Component } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, provide, ref, shallowRef, toRaw, watch, type Component } from 'vue'
 import {
   addItem,
   autoArrange as arrangeLayout,
@@ -58,7 +58,7 @@ import {
   type SizeLimits,
   type ResizeHandles,
 } from '../core'
-import { GRID_CONTEXT, handledEvents, shortcutOwner, type ActiveInteraction, type GridContext } from './context'
+import { GRID_CONTEXT, handledEvents, shortcutOwner, untrackedLoads, type ActiveInteraction, type GridContext } from './context'
 import { findDropTarget, registerDropTarget, snapshotDropTargets, type DropTarget, type Point, type TargetSnapshot } from './dnd'
 import { createGhost, startAutoScroll, type Ghost } from './dom'
 import { animateLeave, enterDuration, resolveAnimation, type AnimationSetting } from './animation'
@@ -67,7 +67,7 @@ import { cloneData, createWidgetId } from './id'
 import { safeWidgetProps } from './safeProps'
 import { setActiveTrash, trashAt } from './trash'
 import { endDragState, startDragState } from './dragState'
-import type { AddWidgetOptions, DropEvent, DropSource, GridWidget, InteractionKind, WidgetSource } from './types'
+import type { AddWidgetOptions, ChangeInfo, ChangeSource, DropEvent, DropSource, GridWidget, InteractionKind, WidgetSource } from './types'
 
 const props = withDefaults(
   defineProps<{
@@ -200,8 +200,11 @@ const emit = defineEmits<{
   breakpointChange: [name: string]
   /* A widget threw while rendering and now shows a retry fallback */
   widgetError: [widget: T, error: unknown]
-  /* Widgets whose position, size or collapsed state changed */
-  change: [widgets: T[]]
+  /*
+   * Widgets whose position, size or collapsed state changed
+   * source is user for drags, resizes, keys, drops and method calls, auto when the grid adjusted the layout itself
+   */
+  change: [widgets: T[], info: ChangeInfo]
   /* A widget was added by addWidget or a drop */
   add: [widget: T]
   /* While dragging, when the widget reaches a new cell */
@@ -373,7 +376,7 @@ function syncHistoryFlags() {
   canRedo.value = props.history && history.canRedo
 }
 
-function setModel(next: T[], notify: boolean, record = true) {
+function setModel(next: T[], notify: boolean, record = true, source: ChangeSource = 'user') {
   const previous = committed
   if (record && ready && props.history) history.record(previous, next)
   if (ready) animatePresence(previous, next)
@@ -385,7 +388,7 @@ function setModel(next: T[], notify: boolean, record = true) {
   emit('update:modelValue', next)
   if (!ready) return
   const changed = changedIds(previous, next)
-  if (changed.size) emit('change', next.filter((w) => changed.has(w.id)))
+  if (changed.size) emit('change', next.filter((w) => changed.has(w.id)), { source })
 }
 
 // CSS animates moves and resizes, this handles widgets appearing and disappearing
@@ -490,9 +493,9 @@ const display = shallowRef<T[] | null>(null)
 const rendered = computed<T[]>(() => (display.value ? restoreLayout(display.value, effective.value) : effective.value))
 
 /* Save a layout arranged on screen back into the widget array */
-function commitView(next: readonly T[], extraHeights?: Map<string, number>, record = true) {
+function commitView(next: readonly T[], extraHeights?: Map<string, number>, record = true, source: ChangeSource = 'user') {
   const withHeights = restoreHeights(next, view.value, extraHeights)
-  setModel(writeLayout(model.value, withHeights, activeBp.value, baseBp.value), true, record)
+  setModel(writeLayout(model.value, withHeights, activeBp.value, baseBp.value), true, record, source)
 }
 
 // Drag and resize
@@ -833,8 +836,10 @@ function finish(commit: boolean) {
   if (pendingHeights.size) scheduleContentHeights()
 
   if (widget) {
-    if (s.kind === 'drag') emit('dragEnd', widget)
-    else emit('resizeEnd', widget)
+    // Where it ended up, v-model and change have already fired, a widget that left keeps its last spot here
+    const final = modelItem(s.id) ?? widget
+    if (s.kind === 'drag') emit('dragEnd', final)
+    else emit('resizeEnd', final)
   }
 }
 
@@ -921,7 +926,7 @@ watch(
     if (session.value) finish(false)
     const tidy = tidyModel(sane, unplaced)
     const unchanged = !unplaced.size && sane === incomingValue && layoutsEqual(tidy, incomingValue)
-    setModel(unchanged ? incomingValue : tidy, !unchanged)
+    setModel(unchanged ? incomingValue : tidy, !unchanged, !untrackedLoads.has(toRaw(incomingValue)), 'auto')
     ready = true
   },
   { immediate: true, deep: 2 },
@@ -938,7 +943,7 @@ watch([() => baseBp.value.columns, () => props.compact, maxRows, collapsedRows, 
   if (!ready) return
   if (session.value) finish(false)
   const tidy = tidyModel(model.value)
-  if (!layoutsEqual(tidy, model.value)) setModel(tidy, true)
+  if (!layoutsEqual(tidy, model.value)) setModel(tidy, true, true, 'auto')
 })
 
 watch(
@@ -1102,7 +1107,7 @@ function onGridPointerDown(event: PointerEvent) {
     marquee.value = box
     const hits = rendered.value
       .filter((w) => {
-        const r = toPixels(w, metrics.value)
+        const r = drawnBox(w, toPixels(w, metrics.value))
         return r.x < box.x + box.w && box.x < r.x + r.w && r.y < box.y + box.h && box.y < r.y + r.h
       })
       .map((w) => w.id)
@@ -1245,7 +1250,7 @@ const snapLines = computed<AlignmentGuide[]>(() => {
   const s = session.value
   const ids = new Set(s ? [s.id, ...s.members] : incoming.value ? [incoming.value.id] : [])
   if (!ids.size) return []
-  const moving = rendered.value.filter((w) => ids.has(w.id)).map((w) => toPixels(w, metrics.value))
+  const moving = rendered.value.filter((w) => ids.has(w.id)).map((w) => drawnBox(w, toPixels(w, metrics.value)))
   if (!moving.length) return []
   const left = Math.min(...moving.map((b) => b.x))
   const top = Math.min(...moving.map((b) => b.y))
@@ -1255,7 +1260,7 @@ const snapLines = computed<AlignmentGuide[]>(() => {
     w: Math.max(...moving.map((b) => b.x + b.w)) - left,
     h: Math.max(...moving.map((b) => b.y + b.h)) - top,
   }
-  const others = rendered.value.filter((w) => !ids.has(w.id)).map((w) => toPixels(w, metrics.value))
+  const others = rendered.value.filter((w) => !ids.has(w.id)).map((w) => drawnBox(w, toPixels(w, metrics.value)))
   return alignmentGuides(target, others)
 })
 
@@ -1411,6 +1416,9 @@ function resetBreakpoint(name: string = activeBp.value.name) {
 
 const sizeSetting = computed<boolean | number>(() => props.sizeToContent ?? false)
 const pendingHeights = new Map<ItemId, number>()
+// Last content height each widget reported, kept so heights can be fixed again after outside changes,
+// and reactive so a fitted widget is drawn exactly as tall as its content
+const measuredHeights = shallowRef<ReadonlyMap<ItemId, number>>(new Map())
 const forcedSizing = new Set<ItemId>()
 const recentResizes = new Map<ItemId, number[]>()
 let sizeFrame: ReturnType<typeof setTimeout> | number | null = null
@@ -1426,9 +1434,35 @@ function scheduleContentHeights() {
 
 function reportContentHeight(id: ItemId, px: number) {
   if (!isNum(px) || px < 0) return
+  if (measuredHeights.value.get(id) !== px) measuredHeights.value = new Map(measuredHeights.value).set(id, px)
   pendingHeights.set(id, px)
   scheduleContentHeights()
 }
+
+/* Rows a fitted widget should have for px of content, within its limits, or null when it is not fitted */
+function fittedRows(item: T, px: number, forced = false): number | null {
+  if (item.collapsed) return null
+  const setting = item.sizeToContent ?? sizeSetting.value
+  if (!forced && (setting === false || setting === 0)) return null
+  let rows = rowsForHeight(px, metrics.value)
+  if (typeof setting === 'number' && setting > 0) rows = Math.min(rows, Math.floor(setting))
+  return clampItem({ ...item, h: rows }, opts.value).h
+}
+
+// Content only reports when its own size changes, so a layout loaded from outside, an undo or a reset
+// would keep its old heights forever, recheck fitted widgets against their last measured height
+watch([effective, metrics], ([list]) => {
+  if (measuredHeights.value.size > list.length) {
+    measuredHeights.value = new Map([...measuredHeights.value].filter(([id]) => list.some((w) => w.id === id)))
+  }
+  for (const item of list) {
+    const px = measuredHeights.value.get(item.id)
+    if (px === undefined) continue
+    const rows = fittedRows(item, px)
+    if (rows !== null && rows !== item.h) pendingHeights.set(item.id, px)
+  }
+  if (pendingHeights.size) scheduleContentHeights()
+})
 
 /* Stop content whose height depends on the widget height from resizing forever */
 function oscillating(id: ItemId): boolean {
@@ -1443,24 +1477,34 @@ function oscillating(id: ItemId): boolean {
   return true
 }
 
+/*
+ * Pixel box of a widget as drawn
+ * Rows round up, so a widget whose height comes from its content is drawn exactly as tall as the content,
+ * its handles, outline and placeholder match what is visible, and the spare part of the last row stays empty
+ * A cap or minimum that overrides the content keeps the full row box
+ */
+function drawnBox(widget: GridWidget, box: Rect): Rect {
+  const px = measuredHeights.value.get(widget.id)
+  if (px === undefined || px <= 0 || px >= box.h) return box
+  const rows = fittedRows(widget as T, px)
+  if (rows === null || rows !== rowsForHeight(px, metrics.value) || rows !== widget.h) return box
+  return { ...box, h: px }
+}
+
 function applyContentHeights() {
   // Never resize under the pointer, finish runs this again afterwards
   if (session.value || incoming.value || !pendingHeights.size) return
   let next: readonly T[] = effective.value
   for (const [id, px] of pendingHeights) {
     const item = next.find((w) => w.id === id)
-    if (!item || item.collapsed) continue
-    const setting = item.sizeToContent ?? sizeSetting.value
-    const forced = forcedSizing.has(id)
-    if (!forced && (setting === false || setting === 0)) continue
-    let rows = rowsForHeight(px, metrics.value)
-    if (typeof setting === 'number' && setting > 0) rows = Math.min(rows, Math.floor(setting))
-    if (rows === item.h || oscillating(id)) continue
+    if (!item) continue
+    const rows = fittedRows(item, px, forcedSizing.has(id))
+    if (rows === null || rows === item.h || oscillating(id)) continue
     next = resizeItem(next, id, { x: item.x, y: item.y, w: item.w, h: rows }, 's', opts.value)
   }
   pendingHeights.clear()
   forcedSizing.clear()
-  if (next !== effective.value) commitView(compact(next, props.compact, opts.value), undefined, false)
+  if (next !== effective.value) commitView(compact(next, props.compact, opts.value), undefined, false, 'auto')
 }
 
 /* Measure content at its natural height, whatever its normal styling */
@@ -1470,7 +1514,8 @@ function measureContent(id: ItemId): number | null {
   if (!content) return null
   const previous = content.style.height
   content.style.height = 'auto'
-  const height = content.getBoundingClientRect().height
+  // offsetHeight ignores transforms like a running enter animation
+  const height = content.offsetHeight || content.getBoundingClientRect().height
   content.style.height = previous
   return height
 }
@@ -1583,6 +1628,7 @@ provide<GridContext>(GRID_CONTEXT, {
   setPinMode: (id, mode) => void setPinMode(id, mode),
   reportError,
   reportContentHeight,
+  drawnBox,
   pressSelect,
   onKey: onWidgetKey,
   labelFor,
@@ -1643,7 +1689,7 @@ function errorMessage(error: unknown): string {
 const placeholders = computed(() => {
   const s = session.value
   const ids = incoming.value ? [incoming.value.id] : s && !transferring.value && !removing.value ? [s.id, ...s.members] : []
-  return rendered.value.filter((w) => ids.includes(w.id)).map((w) => ({ id: w.id, ...toPixels(w, metrics.value) }))
+  return rendered.value.filter((w) => ids.includes(w.id)).map((w) => ({ id: w.id, ...drawnBox(w, toPixels(w, metrics.value)) }))
 })
 
 const gridRows = computed(() => {

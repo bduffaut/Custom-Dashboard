@@ -44,6 +44,8 @@ export interface GridContext {
   reportError(widget: GridWidget, error: unknown): void
   /* A size to content widget reports its content height in px */
   reportContentHeight(id: ItemId, px: number): void
+  /* Pixel box as drawn, a widget sized to its content is exactly as tall as the content */
+  drawnBox(widget: GridWidget, box: Rect): Rect
   /* Pointer pressed on a widget, a modifier toggles it, otherwise it is selected unless already part of the selection */
   pressSelect(id: ItemId, toggle: boolean): void
   /* A key pressed while the widget itself has focus */
@@ -65,6 +67,9 @@ export function useGridContext(): GridContext {
  * With nested grids the event bubbles to the outer grid, which checks this and ignores it
  */
 export const handledEvents = new WeakSet<Event>()
+
+/* Internal, widget arrays the grid takes without an undo step, like a layout loaded after mount */
+export const untrackedLoads = new WeakSet<object>()
 
 /* Internal, the grid that answers undo and redo shortcuts, shared by every instance */
 export const shortcutOwner: { current: symbol | null } = { current: null }

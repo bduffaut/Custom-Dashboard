@@ -1,8 +1,17 @@
 {
   "name": "custom-dashboard-grid",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Draggable, resizable dashboard grid for Vue 3. Give it widgets, it handles the rest.",
-  "keywords": ["vue", "vue3", "grid", "dashboard", "drag", "resize", "layout", "widgets"],
+  "keywords": [
+    "vue",
+    "vue3",
+    "grid",
+    "dashboard",
+    "drag",
+    "resize",
+    "layout",
+    "widgets"
+  ],
   "license": "MIT",
   "author": "Benjamin Duffaut",
   "repository": {
@@ -17,7 +26,8 @@
   "type": "module",
   "files": [
     "dist",
-    "LICENSE"
+    "LICENSE",
+    "CHANGELOG.md"
   ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",

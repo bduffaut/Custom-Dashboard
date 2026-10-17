@@ -44,9 +44,9 @@
 
 | Event | Payload |
 |---|---|
-| `drag-start`, `drag-end`, `resize-start`, `resize-end` | The widget |
+| `drag-start`, `drag-end`, `resize-start`, `resize-end` | The widget, at its final spot for the end events |
 | `drag`, `resize` | `(widget, cell)` each time it reaches a new cell or size |
-| `change` | Widgets whose position, size or collapsed state changed |
+| `change` | `(widgets, { source })`, the widgets whose position, size or collapsed state changed. `source` is `user` for drags, resizes, keys, drops and method calls, and `auto` when the grid adjusted the layout itself, like sizing to content |
 | `add` | A widget added by `addWidget` or a drop |
 | `remove` | The removed widget |
 | `drop` | `{ widget, from }`, where `from` is `grid` or `external` |
@@ -55,6 +55,14 @@
 | `breakpoint-change` | The new breakpoint name |
 | `widget-error` | `(widget, error)` when a widget crashes and shows its fallback |
 | `selection-change` | The selected ids |
+
+When a drag or resize ends, `update:modelValue` and `change` fire first, then `drag-end` or `resize-end`, all in the same tick. Your `v-model` array is already up to date inside an end handler, so there is no need for `nextTick`.
+
+To save only what the user did, listen to `change` and skip `auto`:
+
+```vue
+<DashboardGrid v-model="widgets" @change="(_, { source }) => source === 'user' && save()" />
+```
 
 ## Methods
 
@@ -132,7 +140,9 @@ Call it in any component rendered inside a widget.
 | `useWidgetCatalog` | Search and grouping for a widget palette, see [Widget palettes](features.md#widget-palettes) |
 | `vDraggableWidget`, `vWidgetTrash` | The directives |
 | `useLayoutStorage`, `useSavedLayouts` | localStorage helpers, see [Saving and loading](features.md#saving-and-loading) |
-| `parseLayout`, `serializeLayout`, `toSavedLayout` | Versioned JSON helpers, usable without Vue |
+| `serializeLayout` | Layout as a JSON string with a version, ready to store as is |
+| `parseLayout`, `toSavedLayout` | Read a saved layout back, or get the `{ version, savedAt, widgets }` object, usable without Vue |
+| `reconcileLayout(saved, current)` | Merge a saved layout with the widgets that exist now, see [Saving and loading](features.md#saving-and-loading) |
 | `defineWidgets` | Type helper for widgets without `x` and `y` |
 | `createWidgetId` | A unique id like `chart-lq3k9x-4` |
 | `pinModeOf`, `PIN_MODES`, `PIN_MODE_OPTIONS` | Read a widget's pin mode, and ready made labels for a pin menu |

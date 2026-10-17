@@ -35,6 +35,14 @@ export function defineWidgets<T extends GridWidget = GridWidget>(widgets: Widget
 
 export type InteractionKind = 'drag' | 'resize'
 
+/* user for drags, resizes, keys, drops and method calls, auto for sizing to content and other adjustments the grid makes itself */
+export type ChangeSource = 'user' | 'auto'
+
+/* Second argument of the change event */
+export interface ChangeInfo {
+  source: ChangeSource
+}
+
 /* Where a dropped widget came from */
 export type DropSource = 'grid' | 'external'
 

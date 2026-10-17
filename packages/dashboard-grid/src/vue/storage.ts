@@ -1,5 +1,6 @@
-import { getCurrentScope, onScopeDispose, ref, watch, type Ref } from 'vue'
+import { getCurrentInstance, getCurrentScope, onMounted, onScopeDispose, ref, toRaw, watch, type Ref } from 'vue'
 import { parseLayout, serializeLayout, warn } from '../core'
+import { untrackedLoads } from './context'
 import { cloneData, createWidgetId } from './id'
 import type { GridWidget } from './types'
 
@@ -25,12 +26,24 @@ function defaultStorage(): StorageOptions['storage'] {
 
 const message = (error: unknown) => (error instanceof Error ? error.message : String(error))
 
+export interface LayoutStorageOptions<T extends GridWidget = GridWidget> extends StorageOptions {
+  /* Wait this many ms after the last change before saving, default 250 */
+  debounce?: number
+  /*
+   * Start with the defaults and load the saved layout once mounted, for server rendering
+   * The server never sees storage, so loading during setup would render different HTML on the client
+   * The load is not an undo step
+   */
+  loadOnMount?: boolean
+  /*
+   * Adjust a loaded layout before it is used, like merging it with widgets that come from your data
+   * reconcileLayout does the usual merge: keep saved positions, drop widgets that are gone, add new ones
+   */
+  reconcile?: (saved: T[], defaults: T[]) => T[]
+}
+
 /* The current layout, loaded from storage and saved back automatically */
-export function useLayoutStorage<T extends GridWidget>(
-  key: string,
-  defaults: T[] | (() => T[]),
-  options: StorageOptions & { debounce?: number } = {},
-) {
+export function useLayoutStorage<T extends GridWidget>(key: string, defaults: T[] | (() => T[]), options: LayoutStorageOptions<T> = {}) {
   const storage = options.storage === undefined ? defaultStorage() : options.storage
   const version = options.version ?? 1
   const makeDefault = () => cloneData(typeof defaults === 'function' ? defaults() : defaults)
@@ -39,14 +52,19 @@ export function useLayoutStorage<T extends GridWidget>(
     try {
       const raw = storage?.getItem(key)
       if (raw === null || raw === undefined) return makeDefault()
-      return parseLayout<T>(raw, { version, migrate: options.migrate, fallback: makeDefault })
+      const fallback = makeDefault()
+      const parsed = parseLayout<T>(raw, { version, migrate: options.migrate, fallback })
+      // Nothing usable was saved, so there is nothing to reconcile
+      if (parsed === fallback || !options.reconcile) return parsed
+      return options.reconcile(parsed, makeDefault())
     } catch (error) {
       warn(`Could not read the layout from storage (${message(error)}); using the default.`)
       return makeDefault()
     }
   }
 
-  const widgets = ref(read()) as Ref<T[]>
+  const deferred = !!options.loadOnMount && !!getCurrentInstance()
+  const widgets = ref(deferred ? makeDefault() : read()) as Ref<T[]>
   let timer: ReturnType<typeof setTimeout> | undefined
   // Set by clear so resetting does not immediately save the defaults again
   let skipNextSave = false
@@ -73,6 +91,16 @@ export function useLayoutStorage<T extends GridWidget>(
     },
     { deep: true },
   )
+
+  if (deferred) {
+    onMounted(() => {
+      const loaded = read()
+      // Tells the grid this replacement is a load, not a change to undo
+      untrackedLoads.add(toRaw(loaded))
+      skipNextSave = true
+      widgets.value = loaded
+    })
+  }
 
   // Write pending changes before the page goes away
   const flush = () => {
