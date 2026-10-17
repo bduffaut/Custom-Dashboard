@@ -64,6 +64,7 @@ import { createGhost, startAutoScroll, type Ghost } from './dom'
 import { animateLeave, enterDuration, resolveAnimation, type AnimationSetting } from './animation'
 import GridItem from './GridItem.vue'
 import { cloneData, createWidgetId } from './id'
+import { safeWidgetProps } from './safeProps'
 import { setActiveTrash, trashAt } from './trash'
 import { endDragState, startDragState } from './dragState'
 import type { AddWidgetOptions, DropEvent, DropSource, GridWidget, InteractionKind, WidgetSource } from './types'
@@ -1627,8 +1628,12 @@ function componentFor(widget: T): Component | undefined {
   return widget.type && registry && Object.prototype.hasOwnProperty.call(registry, widget.type) ? registry[widget.type] : undefined
 }
 
+// Saved layouts are untrusted, so only declared props reach the component, never the page
 function propsFor(widget: T): Record<string, unknown> {
-  return widget.props && typeof widget.props === 'object' && !Array.isArray(widget.props) ? widget.props : {}
+  const props = widget.props
+  const component = componentFor(widget)
+  if (!props || typeof props !== 'object' || Array.isArray(props) || !component) return {}
+  return safeWidgetProps(component, props, widget.id)
 }
 
 function errorMessage(error: unknown): string {

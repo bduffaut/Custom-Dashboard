@@ -39,7 +39,7 @@ const widgets = ref<GridWidget[]>([
 
 ## Docs
 
-- [Getting started](../../docs/getting-started.md)
-- [API reference](../../docs/api.md)
-- [Features](../../docs/features.md)
-- [Reliability and limits](../../docs/reliability.md)
+- [Getting started](https://github.com/bduffaut/Custom-Dashboard/blob/main/docs/getting-started.md)
+- [API reference](https://github.com/bduffaut/Custom-Dashboard/blob/main/docs/api.md)
+- [Features](https://github.com/bduffaut/Custom-Dashboard/blob/main/docs/features.md)
+- [Reliability and limits](https://github.com/bduffaut/Custom-Dashboard/blob/main/docs/reliability.md)

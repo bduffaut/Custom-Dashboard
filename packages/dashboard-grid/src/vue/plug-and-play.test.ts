@@ -3,6 +3,7 @@ import { defineComponent, effectScope, h, nextTick, ref, withDirectives, type VN
 import { afterEach, beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import {
   DashboardGrid,
+  parseLayout,
   PIN_MODE_OPTIONS,
   PIN_MODES,
   useDragState,
@@ -187,6 +188,45 @@ describe('updateProps', () => {
     api!.updateProps({ count: 2 })
     await nextTick()
     expect(model.value[0]!.props).toEqual({ title: 'Keep', text: 'hello', count: 2 })
+  })
+
+})
+
+describe('untrusted widget props', () => {
+  const hostile = {
+    title: 'Hi',
+    innerHTML: '<img class=pwn>',
+    style: 'position:fixed;inset:0;background:url(https://evil.example/t.png)',
+    class: 'pwn-class',
+    href: 'javascript:alert(1)',
+  }
+
+  it('binds only the props a component declares, the rest stay in the data', async () => {
+    const Card = defineComponent({ props: { title: String, maxItems: Number }, setup: (p) => () => h('a', { class: 'card' }, `${p.title} ${p.maxItems}`) })
+    const widgets = parseLayout(JSON.stringify([{ id: 'a', type: 'card', x: 0, y: 0, w: 2, h: 2, props: { ...hostile, 'max-items': 3 } }]))
+    const { wrapper, model } = mountGrid(widgets, { components: { card: Card } })
+    await nextTick()
+    const card = wrapper.find('.card')
+    expect(card.text()).toBe('Hi 3')
+    expect(card.attributes()).toEqual({ class: 'card' })
+    expect(wrapper.find('.pwn').exists()).toBe(false)
+    expect(model.value[0]!.props).toMatchObject(hostile)
+  })
+
+  it('passes other props but nothing that could change the page to components that declare none', async () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    let received: Record<string, unknown> = {}
+    const Plain = (props: Record<string, unknown>) => {
+      received = props
+      return h('div', { class: 'plain' }, String(props.title))
+    }
+    const widgets = parseLayout(JSON.stringify([{ id: 'a', type: 'plain', x: 0, y: 0, w: 2, h: 2, props: { ...hostile, onClick: 'x' } }]))
+    const { wrapper } = mountGrid(widgets, { components: { plain: Plain } })
+    await nextTick()
+    expect(wrapper.find('.plain').text()).toBe('Hi')
+    expect(Object.keys(received).sort()).toEqual(['href', 'title'])
+    expect(wrapper.find('.plain').attributes('style')).toBeUndefined()
+    expect(wrapper.find('.pwn').exists()).toBe(false)
   })
 })
 

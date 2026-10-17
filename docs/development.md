@@ -71,10 +71,10 @@ Tests live next to the code as `*.test.ts` and run with Vitest in jsdom. jsdom h
 
 ## Before publishing
 
-- Pick the final package name, check it is free on npm, then replace `custom-dashboard-grid` everywhere
-- Add a license, plus `repository` and `author` in `packages/dashboard-grid/package.json`
-- Change the links in the package README to absolute URLs, since npm does not show the `docs` folder
-- `npm run build`, then `npm publish -w custom-dashboard-grid`
+- The GitHub repo must be public, the package README links to the docs there
+- Bump `version` in `packages/dashboard-grid/package.json`, or run `npm version patch -w custom-dashboard-grid`
+- `npm pack --dry-run -w custom-dashboard-grid` to see exactly which files will ship
+- `npm publish -w custom-dashboard-grid`, which runs the tests and a fresh build first through `prepublishOnly`
 
 ## Ideas
 

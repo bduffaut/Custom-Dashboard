@@ -45,7 +45,7 @@ Saving a dashboard is just saving that array.
 | `x`, `y` | Column and row of the top left corner, from 0. Leave both out to place the widget in the first free spot |
 | `w`, `h` | Width in columns and height in rows |
 | `type` | Which entry in `components` renders it |
-| `props` | Props passed to that component |
+| `props` | Props passed to that component. Only props the component declares are bound, so saved data can never set attributes like `style` or `href` on the page. Everything stays readable through `useWidget` |
 | `minW`, `maxW`, `minH`, `maxH` | Size limits |
 | `static` | Never moves or resizes, others flow around it |
 | `locked` | Other widgets never push it, but the user can still move and resize it |

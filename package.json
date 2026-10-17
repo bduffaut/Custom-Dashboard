@@ -11,7 +11,7 @@
     "build": "npm run build -w custom-dashboard-grid && npm run build -w playground",
     "test": "npm run test -w custom-dashboard-grid",
     "test:run": "npm run test:run -w custom-dashboard-grid",
-    "typecheck": "npm run typecheck --workspaces"
+    "typecheck": "npm run build -w custom-dashboard-grid && npm run typecheck --workspaces"
   },
   "devDependencies": {
     "@types/node": "^26.6.4",

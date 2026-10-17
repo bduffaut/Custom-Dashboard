@@ -51,9 +51,15 @@ function lowestOverlap(list: readonly LayoutItem[], item: Rect & { id: string })
   return bottomEdge
 }
 
-/* Move item down past each obstacle until it overlaps nothing, mutates item */
+/*
+ * Move item down past each obstacle until it overlaps nothing, mutates item
+ * One pass over the items in its columns by top edge, the item only moves down so none it passed can block it again
+ * Rescanning the whole list after every step made stacked input cubic, 2000 widgets froze the page for seconds
+ */
 function dropBelow(list: readonly LayoutItem[], item: LayoutItem): void {
-  for (let edge = lowestOverlap(list, item); edge >= 0; edge = lowestOverlap(list, item)) item.y = edge
+  const inColumns = list.filter((other) => other.id !== item.id && other.x < item.x + item.w && item.x < other.x + other.w)
+  inColumns.sort((a, b) => a.y - b.y)
+  for (const other of inColumns) if (overlaps(item, other)) item.y = other.y + other.h
 }
 
 export function cloneLayout<T extends LayoutItem>(layout: readonly T[]): T[] {

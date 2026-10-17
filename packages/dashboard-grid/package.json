@@ -3,9 +3,21 @@
   "version": "0.1.0",
   "description": "Draggable, resizable dashboard grid for Vue 3. Give it widgets, it handles the rest.",
   "keywords": ["vue", "vue3", "grid", "dashboard", "drag", "resize", "layout", "widgets"],
+  "license": "MIT",
+  "author": "Benjamin Duffaut",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/bduffaut/Custom-Dashboard.git",
+    "directory": "packages/dashboard-grid"
+  },
+  "homepage": "https://github.com/bduffaut/Custom-Dashboard#readme",
+  "bugs": {
+    "url": "https://github.com/bduffaut/Custom-Dashboard/issues"
+  },
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "LICENSE"
   ],
   "main": "./dist/index.js",
   "module": "./dist/index.js",
@@ -25,9 +37,10 @@
     "dev": "concurrently -k -n js,types -c blue,cyan \"vite build --watch\" \"vue-tsc -p tsconfig.build.json --watch --preserveWatchOutput\"",
     "test": "vitest",
     "test:run": "vitest run",
-    "typecheck": "vue-tsc -p tsconfig.json"
+    "typecheck": "vue-tsc -p tsconfig.json",
+    "prepublishOnly": "npm run test:run && npm run build"
   },
   "peerDependencies": {
-    "vue": "^3.3.0"
+    "vue": "^3.5.0"
   }
 }
